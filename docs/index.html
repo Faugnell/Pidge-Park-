@@ -11,20 +11,191 @@
 
     <title>Pidge Park!</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Coiny&family=Nunito+Sans:wght@400;500;600;700&family=Patrick+Hand&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="./assets/css/style.css">
   </head>
 
   <body>
-    <main>
-      <h1>Pidge Park!</h1>
+    <header class="site-header">
+        <a class="site-logo logo" href="#home" aria-label="Pidge Park — Home">
+        Pidge Park!
+        </a>
 
-      <p>
-        A cosy game about collecting pigeons and giving them your love.
-      </p>
+        <nav class="main-navigation" aria-label="Main navigation">
+        <a href="#home" data-i18n="nav.home">Home</a>
+        <a href="#about" data-i18n="nav.about">About</a>
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#pigeons" data-i18n="nav.pigeons">Pigeons</a>
+        <a href="#screenshots" data-i18n="nav.screenshots">Screenshots</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
+        </nav>
 
-      <p>Coming soon.</p>
+        <div class="header-actions">
+        <label class="language-picker">
+            <span class="visually-hidden">Language</span>
+
+            <select id="language-select" aria-label="Language">
+            <option value="en">EN</option>
+            <option value="fr">FR</option>
+            </select>
+        </label>
+
+        <a class="download-button" href="#download" data-i18n="nav.download">
+            Download on Mobile
+        </a>
+        </div>
+    </header>
+    <main id="home">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title">Pidge<br>Park<span aria-hidden="true">!</span></h1>
+          <p class="hero-tagline" data-i18n="hero.tagline">
+            A tiny park. A very big flock.
+          </p>
+          <p class="hero-description" data-i18n="hero.description">
+            Collect cute pigeons, feed them, decorate and upgrade your park,
+            complete daily missions and grow your collection.
+          </p>
+          <a class="hero-button" id="download" href="#">
+            <span data-i18n="hero.download">Download on Mobile</span> <span aria-hidden="true">→</span>
+          </a>
+          <div class="store-links" aria-label="Mobile stores">
+            <span>● App Store</span>
+            <span>▶ Google Play</span>
+          </div>
+        </div>
+
+        <div class="hero-art mockup" role="img" aria-label="Pigeons sitting together on a park bench">
+          <span class="mockup-name">pigeon_bench.png</span>
+          <span class="mockup-note" data-i18n="mockup.hero">Hero illustration placeholder</span>
+        </div>
+      </section>
+
+      <ul class="feature-strip" aria-label="Game highlights">
+        <li><span aria-hidden="true">🌿</span><span data-i18n="strip.collect">Collect unique pigeons</span></li>
+        <li><span aria-hidden="true">♥</span><span data-i18n="strip.feed">Feed and befriend</span></li>
+        <li><span aria-hidden="true">🏡</span><span data-i18n="strip.decorate">Decorate and upgrade</span></li>
+        <li><span aria-hidden="true">✓</span><span data-i18n="strip.missions">Daily missions</span></li>
+        <li><span aria-hidden="true">★</span><span data-i18n="strip.collection">Grow your collection</span></li>
+      </ul>
+
+      <section class="features-section" id="about" aria-labelledby="features-title">
+        <header class="section-heading">
+          <p class="section-kicker" aria-hidden="true">❧</p>
+          <h2 id="features-title" data-i18n="features.title">Make a park worth cooing about.</h2>
+          <p data-i18n="features.intro">Turn a quiet corner into a cosy home for pigeons and people alike.</p>
+        </header>
+
+        <div class="feature-cards" id="features">
+          <article class="feature-card feature-card-yellow">
+            <h3 data-i18n="cards.collect.title">Collect &amp; Care</h3>
+            <p data-i18n="cards.collect.description">Discover rare pigeons, feed them their favourite snacks and build lasting friendships.</p>
+            <div class="card-art mockup" role="img" aria-label="Pigeon eating seeds">
+              <span class="mockup-name">pigeon_seeds.png</span>
+            </div>
+            <a href="#pigeons"><span data-i18n="cards.collect.button">Collect Pigeons</span> <span aria-hidden="true">→</span></a>
+          </article>
+
+          <article class="feature-card feature-card-green">
+            <h3 data-i18n="cards.decorate.title">Decorate &amp; Upgrade</h3>
+            <p data-i18n="cards.decorate.description">Add benches, fountains, flowers and more. Make the park uniquely yours.</p>
+            <div class="card-art mockup" role="img" aria-label="Decorated park with a fountain">
+              <span class="mockup-name">park_fountain.png</span>
+            </div>
+            <a href="#screenshots"><span data-i18n="cards.decorate.button">Decorate Your Park</span> <span aria-hidden="true">→</span></a>
+          </article>
+
+          <article class="feature-card feature-card-blue">
+            <h3 data-i18n="cards.missions.title">Daily Missions</h3>
+            <p data-i18n="cards.missions.description">Take on fun daily tasks, earn rewards and keep your flock happy.</p>
+            <div class="card-art mockup" role="img" aria-label="Clipboard showing daily missions">
+              <span class="mockup-name">mission_board.png</span>
+            </div>
+            <a href="#faq"><span data-i18n="cards.missions.button">View Missions</span> <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+      </section>
+
+      <section class="pigeons-section" id="pigeons" aria-labelledby="pigeons-title">
+        <header class="section-heading">
+          <p class="section-kicker" aria-hidden="true">❧</p>
+          <h2 id="pigeons-title" data-i18n="pigeons.title">Meet the locals</h2>
+          <p data-i18n="pigeons.intro">Every pigeon has a story. Here are a few friendly faces you might meet in the park!</p>
+        </header>
+
+        <div class="pigeon-cards">
+          <article class="pigeon-card">
+            <div class="pigeon-portrait mockup" role="img" aria-label="Pebble the pigeon">
+              <span class="mockup-name">pigeon_pebble.png</span>
+            </div>
+            <div><h3>Pebble</h3><p data-i18n="pigeons.pebble.description">A curious little explorer who always finds the best snacks.</p><span class="tag" data-i18n="pigeons.pebble.tag">Curious</span></div>
+          </article>
+          <article class="pigeon-card">
+            <div class="pigeon-portrait mockup" role="img" aria-label="Maple the pigeon">
+              <span class="mockup-name">pigeon_maple.png</span>
+            </div>
+            <div><h3>Maple</h3><p data-i18n="pigeons.maple.description">A warm and gentle soul who loves sunny spots and making friends.</p><span class="tag" data-i18n="pigeons.maple.tag">Friendly</span></div>
+          </article>
+          <article class="pigeon-card">
+            <div class="pigeon-portrait mockup" role="img" aria-label="Nimbus the pigeon">
+              <span class="mockup-name">pigeon_nimbus.png</span>
+            </div>
+            <div><h3>Nimbus</h3><p data-i18n="pigeons.nimbus.description">A calm daydreamer who always seems to find the cloudiest seat.</p><span class="tag" data-i18n="pigeons.nimbus.tag">Dreamer</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="follow-section" id="screenshots" aria-labelledby="follow-title">
+        <div class="follow-decoration mockup" role="img" aria-label="Flowers and plants in the park">
+          <span class="mockup-name">plant_corner.png</span>
+        </div>
+        <div class="follow-copy">
+          <h2 id="follow-title" data-i18n="follow.title">Follow the flock</h2>
+          <p data-i18n="follow.description">Get the latest updates, behind the scenes art, new pigeons and more!</p>
+          <a href="#"><span data-i18n="follow.button">Follow Along</span> <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="follow-decoration mockup" role="img" aria-label="Pigeon standing beside flowers">
+          <span class="mockup-name">pigeon_wall.png</span>
+        </div>
+      </section>
+
+      <section class="faq-section" id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title" data-i18n="faq.title">Frequently asked questions</h2>
+        <p data-i18n="faq.description">More information about Pidge Park is coming soon.</p>
+      </section>
     </main>
 
-    <script src="./assets/js/main.js"></script>
+    <footer class="site-footer">
+        <div class="footer-brand">
+            <a class="footer-logo logo" href="#home" aria-label="Pidge Park — Home">
+            Pidge Park!
+            </a>
+
+            <p data-i18n="footer.tagline">
+            A cosier world, one pigeon at a time.
+            </p>
+        </div>
+
+        <nav class="footer-navigation" aria-label="Footer navigation">
+            <a href="#privacy" data-i18n="footer.privacy">Privacy</a>
+            <a href="#terms" data-i18n="footer.terms">Terms</a>
+            <a href="#contact" data-i18n="footer.contact">Contact</a>
+            <a href="#press" data-i18n="footer.press">Press</a>
+        </nav>
+
+        <div class="social-links" aria-label="Social media">
+            <a href="#" aria-label="Discord">Discord</a>
+            <a href="#" aria-label="Instagram">Instagram</a>
+            <a href="#" aria-label="X">X</a>
+            <a href="#" aria-label="YouTube">YouTube</a>
+        </div>
+        </footer>
+
+    <script src="./assets/js/main.js?v=2"></script>
   </body>
 </html>
