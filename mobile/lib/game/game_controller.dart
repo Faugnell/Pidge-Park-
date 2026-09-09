@@ -93,6 +93,20 @@ class GameController extends ChangeNotifier {
     await _save();
   }
 
+  Future<bool> exchangeFeathersForCrumbs({
+    required int featherCost,
+    required int crumbAmount,
+  }) async {
+    if (featherCost <= 0 || crumbAmount <= 0 || feathers < featherCost) {
+      return false;
+    }
+    feathers -= featherCost;
+    crumbs += crumbAmount;
+    notifyListeners();
+    await _save();
+    return true;
+  }
+
   Future<bool> placeFood(Food food) async {
     if (hasActiveFood || !canAfford(food)) return false;
 

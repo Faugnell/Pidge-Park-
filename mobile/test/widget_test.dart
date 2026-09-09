@@ -68,7 +68,19 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('shop-button')));
     await tester.pumpAndSettle();
-    expect(find.text('La boutique ouvrira bientôt.'), findsOneWidget);
+    expect(find.text('Boutique en préparation'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('buy-500-crumbs')));
+    await tester.pumpAndSettle();
+    expect(find.text('Échanger des plumes ?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('confirm-buy-500-crumbs')));
+    await tester.pumpAndSettle();
+    expect(gameController.crumbs, 1740);
+    expect(gameController.feathers, 10);
+    await tester.tap(find.text('Thèmes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pack Gentlemen'), findsOneWidget);
+    expect(find.text('3 pigeons exclusifs'), findsWidgets);
+    expect(find.text('THÈME À VENIR'), findsWidgets);
 
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -212,6 +224,31 @@ void main() {
 
     gameController.dispose();
     pigeonController.dispose();
+  });
+
+  test('exchanges feathers for crumbs atomically', () async {
+    final gameController = GameController(persistChanges: false);
+
+    expect(
+      await gameController.exchangeFeathersForCrumbs(
+        featherCost: 25,
+        crumbAmount: 500,
+      ),
+      isTrue,
+    );
+    expect(gameController.crumbs, 1740);
+    expect(gameController.feathers, 10);
+    expect(
+      await gameController.exchangeFeathersForCrumbs(
+        featherCost: 60,
+        crumbAmount: 1500,
+      ),
+      isFalse,
+    );
+    expect(gameController.crumbs, 1740);
+    expect(gameController.feathers, 10);
+
+    gameController.dispose();
   });
 
   test('decorations can be bought, equipped, and attract visitors', () async {

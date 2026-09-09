@@ -16,6 +16,7 @@ import 'decorations_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'pigeondex_screen.dart';
 import 'settings_screen.dart';
+import 'shop_screen.dart';
 import 'treasures_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -167,7 +168,10 @@ class _HomeScreenState extends State<HomeScreen> {
         onOpenShop: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => _ShopPage(isFrench: isFrench),
+              builder: (_) => ShopScreen(
+                gameController: widget.gameController,
+                isFrench: isFrench,
+              ),
             ),
           );
         },
@@ -239,42 +243,6 @@ class _HomeScreenState extends State<HomeScreen> {
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
         },
-      ),
-    );
-  }
-}
-
-class _ShopPage extends StatelessWidget {
-  const _ShopPage({required this.isFrench});
-
-  final bool isFrench;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.placeholderBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.placeholderBackground,
-        title: Text(isFrench ? 'Boutique' : 'Shop'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.storefront, size: 64, color: AppColors.selected),
-              const SizedBox(height: 16),
-              Text(
-                isFrench
-                    ? 'La boutique ouvrira bientôt.'
-                    : 'The shop will open soon.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
