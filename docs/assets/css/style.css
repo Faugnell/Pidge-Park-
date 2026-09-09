@@ -342,7 +342,7 @@ h3,
   border-right: 0;
 }
 
-.feature-strip span {
+.feature-strip span[aria-hidden="true"] {
   color: #ee684e;
   font-size: 1.35rem;
 }
@@ -519,6 +519,31 @@ h3,
   background: #fffaf0;
 }
 
+.information-section {
+  padding: 52px 6%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  background: #f3f7e9;
+}
+
+.information-card {
+  padding: 22px;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid rgba(23, 59, 50, 0.1);
+  border-radius: 16px;
+}
+
+.information-card h2 {
+  margin-bottom: 8px;
+  font-size: 1.35rem;
+}
+
+.information-card p {
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
 /* Petit écran temporaire */
 
 @media (max-width: 900px) {
@@ -565,7 +590,8 @@ h3,
   }
 
   .feature-cards,
-  .pigeon-cards {
+  .pigeon-cards,
+  .information-section {
     grid-template-columns: 1fr;
   }
 
@@ -579,6 +605,34 @@ h3,
 
   .follow-decoration:last-child {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .hero-button:hover,
+  .hero-button:focus-visible,
+  .feature-card > a:hover,
+  .feature-card > a:focus-visible,
+  .follow-copy > a:hover,
+  .follow-copy > a:focus-visible,
+  .store-badge:hover,
+  .store-badge:focus-visible,
+  .social-links a:hover,
+  .social-links a:focus-visible {
+    transform: none;
   }
 }
 

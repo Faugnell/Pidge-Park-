@@ -9,6 +9,7 @@ import '../game/daily_challenge_controller.dart';
 import '../models/food.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pigeon_avatar.dart';
+import '../widgets/park_scene.dart';
 
 class ParkScreen extends StatefulWidget {
   const ParkScreen({
@@ -58,7 +59,10 @@ class _ParkScreenState extends State<ParkScreen> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: widget.gameController,
+      animation: Listenable.merge([
+        widget.gameController,
+        widget.decorationController,
+      ]),
       builder: (context, _) {
         final game = widget.gameController;
         return Stack(
@@ -126,18 +130,19 @@ class _ParkScreenState extends State<ParkScreen> {
                         ),
                       ],
                     ),
-                    const Spacer(),
-                    Icon(
-                      game.hasActiveFood ? game.activeFood!.icon : Icons.park,
-                      size: 86,
-                      color: AppColors.selected.withValues(alpha: 0.72),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ParkScene(
+                        gameController: game,
+                        decorationController: widget.decorationController,
+                      ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     _ParkStatus(
                       gameController: game,
                       isFrench: widget.isFrench,
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 12),
                     if (game.visitorReady)
                       FilledButton.icon(
                         key: const ValueKey('meet-visitor'),

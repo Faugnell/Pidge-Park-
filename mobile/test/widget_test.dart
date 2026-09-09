@@ -9,6 +9,7 @@ import 'package:pidge_park_app/game/daily_gift_controller.dart';
 import 'package:pidge_park_app/main.dart';
 import 'package:pidge_park_app/models/decoration.dart';
 import 'package:pidge_park_app/models/food.dart';
+import 'package:pidge_park_app/models/pigeon.dart';
 import 'package:pidge_park_app/notifications/local_notification_service.dart';
 import 'package:pidge_park_app/settings/settings_controller.dart';
 
@@ -266,6 +267,7 @@ void main() {
     expect(gameController.crumbs, 790);
     await decorationController.toggleEquipped(radio);
     expect(decorationController.equippedIds, contains('radio'));
+    expect(decorationController.equippedIds, contains('bench'));
 
     await gameController.placeFood(foods.first);
     now = now.add(const Duration(seconds: 9));
@@ -276,9 +278,44 @@ void main() {
     expect(result?.pigeon.id, 'disco_pigeon');
     expect(result?.isNew, isTrue);
 
+    final fountain = decorations.firstWhere((item) => item.id == 'fountain');
+    expect(await decorationController.buy(fountain, gameController), isTrue);
+    await decorationController.toggleEquipped(fountain);
+    expect(decorationController.equippedIds, contains('fountain'));
+    expect(decorationController.equippedIds, isNot(contains('bench')));
+    expect(
+      decorationController.equippedIds
+          .map((id) => decorations.firstWhere((item) => item.id == id).size)
+          .toSet()
+          .length,
+      decorationController.equippedIds.length,
+    );
+
     gameController.dispose();
     decorationController.dispose();
     pigeonController.dispose();
+  });
+
+  test('all pigeon decoration requirements fit the three park categories', () {
+    for (final pigeon in pigeons) {
+      final requiredDecorations = pigeon.decorationIds.map(
+        (id) => decorations.firstWhere(
+          (decoration) => decoration.id == id,
+          orElse: () => throw StateError(
+            '${pigeon.name} requires unknown decoration $id',
+          ),
+        ),
+      );
+      final requiredSizes = requiredDecorations
+          .map((decoration) => decoration.size)
+          .toList();
+      expect(
+        requiredSizes.toSet().length,
+        requiredSizes.length,
+        reason:
+            '${pigeon.name} requires two decorations from the same category',
+      );
+    }
   });
 
   test('daily challenge rewards once and maintains the streak', () async {
