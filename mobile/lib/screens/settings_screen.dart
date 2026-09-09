@@ -4,9 +4,14 @@ import '../settings/settings_controller.dart';
 import '../theme/app_theme.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({required this.controller, super.key});
+  const SettingsScreen({
+    required this.controller,
+    required this.onResetProgress,
+    super.key,
+  });
 
   final SettingsController controller;
+  final Future<void> Function() onResetProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -175,6 +180,7 @@ class SettingsScreen extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
     await controller.resetAllData();
+    await onResetProgress();
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
