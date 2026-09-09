@@ -6,17 +6,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../collection/pigeon_collection_controller.dart';
 import '../models/food.dart';
 import '../models/pigeon.dart';
+import '../models/treasure.dart';
 
 class EncounterResult {
   const EncounterResult({
     required this.pigeon,
     required this.isNew,
     required this.reward,
+    this.unlockedTreasure,
   });
 
   final Pigeon pigeon;
   final bool isNew;
   final int reward;
+  final PigeonTreasure? unlockedTreasure;
 }
 
 class GameController extends ChangeNotifier {
@@ -75,6 +78,21 @@ class GameController extends ChangeNotifier {
 
   bool canAfford(Food food) => crumbs >= food.price;
 
+  Future<bool> spendCrumbs(int amount) async {
+    if (amount < 0 || crumbs < amount) return false;
+    crumbs -= amount;
+    notifyListeners();
+    await _save();
+    return true;
+  }
+
+  Future<void> addReward({required int crumbs, int feathers = 0}) async {
+    this.crumbs += crumbs;
+    this.feathers += feathers;
+    notifyListeners();
+    await _save();
+  }
+
   Future<bool> placeFood(Food food) async {
     if (hasActiveFood || !canAfford(food)) return false;
 
@@ -88,14 +106,51 @@ class GameController extends ChangeNotifier {
   }
 
   Future<EncounterResult?> meetVisitor(
-    PigeonCollectionController collection,
-  ) async {
+    PigeonCollectionController collection, {
+    Set<String> decorationIds = const {},
+  }) async {
     final food = activeFood;
     if (food == null || !visitorReady) return null;
 
-    final visitorId = food.visitorIds[_random.nextInt(food.visitorIds.length)];
-    final pigeon = pigeons.firstWhere((item) => item.id == visitorId);
-    final isNew = await collection.recordVisit(visitorId);
+    final hour = _now().hour;
+    final period = hour >= 20 || hour < 6
+        ? VisitPeriod.night
+        : hour < 11
+        ? VisitPeriod.morning
+        : VisitPeriod.any;
+    final eligible = pigeons.where((pigeon) {
+      if ({17, 19, 20}.contains(pigeon.number)) return false;
+      final foodMatches =
+          pigeon.foodIds.isEmpty || pigeon.foodIds.contains(food.id);
+      final decorationsMatch = pigeon.decorationIds.every(
+        decorationIds.contains,
+      );
+      final periodMatches =
+          pigeon.period == VisitPeriod.any || pigeon.period == period;
+      return foodMatches && decorationsMatch && periodMatches;
+    }).toList();
+    final candidates = eligible.isEmpty
+        ? pigeons
+              .where((pigeon) => food.visitorIds.contains(pigeon.id))
+              .toList()
+        : eligible;
+    final bestScore = candidates
+        .map(_conditionScore)
+        .reduce((first, second) => first > second ? first : second);
+    final bestCandidates = candidates
+        .where((pigeon) => _conditionScore(pigeon) == bestScore)
+        .toList();
+    final pigeon = bestCandidates[_random.nextInt(bestCandidates.length)];
+    final affectionBefore = collection.progressFor(pigeon.id).affection;
+    final isNew = await collection.recordVisit(pigeon.id);
+    final affectionAfter = collection.progressFor(pigeon.id).affection;
+    final possibleTreasure = treasureForPigeon(pigeon.id);
+    final unlockedTreasure =
+        possibleTreasure != null &&
+            affectionBefore < possibleTreasure.requiredAffection &&
+            affectionAfter >= possibleTreasure.requiredAffection
+        ? possibleTreasure
+        : null;
     final reward = switch (pigeon.rarity) {
       PigeonRarity.common => 20 + _random.nextInt(31),
       PigeonRarity.rare => 50 + _random.nextInt(51),
@@ -108,7 +163,18 @@ class GameController extends ChangeNotifier {
     arrivalAt = null;
     notifyListeners();
     await _save();
-    return EncounterResult(pigeon: pigeon, isNew: isNew, reward: reward);
+    return EncounterResult(
+      pigeon: pigeon,
+      isNew: isNew,
+      reward: reward,
+      unlockedTreasure: unlockedTreasure,
+    );
+  }
+
+  int _conditionScore(Pigeon pigeon) {
+    return pigeon.foodIds.length +
+        pigeon.decorationIds.length +
+        (pigeon.period == VisitPeriod.any ? 0 : 1);
   }
 
   Future<void> resetAllData() async {

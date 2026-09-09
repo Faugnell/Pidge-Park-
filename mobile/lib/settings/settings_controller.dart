@@ -14,6 +14,7 @@ class SettingsController extends ChangeNotifier {
   static const _soundKey = 'settings.sound_enabled';
   static const _musicKey = 'settings.music_enabled';
   static const _vibrationsKey = 'settings.vibrations_enabled';
+  static const _notificationsKey = 'settings.notifications_enabled';
   static const _languageKey = 'settings.language';
 
   final SharedPreferencesAsync? _preferences;
@@ -21,6 +22,7 @@ class SettingsController extends ChangeNotifier {
   bool soundEnabled = true;
   bool musicEnabled = true;
   bool vibrationsEnabled = true;
+  bool notificationsEnabled = false;
   AppLanguage language = AppLanguage.french;
 
   bool get isFrench => language == AppLanguage.french;
@@ -32,6 +34,8 @@ class SettingsController extends ChangeNotifier {
     soundEnabled = await preferences.getBool(_soundKey) ?? true;
     musicEnabled = await preferences.getBool(_musicKey) ?? true;
     vibrationsEnabled = await preferences.getBool(_vibrationsKey) ?? true;
+    notificationsEnabled =
+        await preferences.getBool(_notificationsKey) ?? false;
 
     final savedLanguage = await preferences.getString(_languageKey);
     language = savedLanguage == AppLanguage.english.name
@@ -58,6 +62,12 @@ class SettingsController extends ChangeNotifier {
     await _preferences?.setBool(_vibrationsKey, value);
   }
 
+  Future<void> setNotificationsEnabled(bool value) async {
+    notificationsEnabled = value;
+    notifyListeners();
+    await _preferences?.setBool(_notificationsKey, value);
+  }
+
   Future<void> setLanguage(AppLanguage value) async {
     language = value;
     notifyListeners();
@@ -69,6 +79,7 @@ class SettingsController extends ChangeNotifier {
     soundEnabled = true;
     musicEnabled = true;
     vibrationsEnabled = true;
+    notificationsEnabled = false;
     language = AppLanguage.french;
     notifyListeners();
   }

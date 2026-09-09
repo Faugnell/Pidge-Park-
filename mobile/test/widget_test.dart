@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pidge_park_app/collection/pigeon_collection_controller.dart';
 import 'package:pidge_park_app/game/game_controller.dart';
+import 'package:pidge_park_app/game/decoration_controller.dart';
+import 'package:pidge_park_app/game/daily_challenge_controller.dart';
+import 'package:pidge_park_app/game/daily_cycle.dart';
+import 'package:pidge_park_app/game/daily_gift_controller.dart';
 import 'package:pidge_park_app/main.dart';
+import 'package:pidge_park_app/models/decoration.dart';
 import 'package:pidge_park_app/models/food.dart';
+import 'package:pidge_park_app/notifications/local_notification_service.dart';
 import 'package:pidge_park_app/settings/settings_controller.dart';
 
 void main() {
@@ -20,6 +26,7 @@ void main() {
         gameController: gameController,
         minimumSplashDuration: const Duration(milliseconds: 200),
         loadSettings: false,
+        showDailyGift: false,
       ),
     );
 
@@ -68,6 +75,12 @@ void main() {
     await tester.tap(find.text('Pigeondex'));
     await tester.pumpAndSettle();
     expect(find.text('Gilbert'), findsOneWidget);
+    expect(find.text('1 / 30'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('pigeon-michel')));
+    await tester.pumpAndSettle();
+    expect(find.text('« Une tranche classique. »'), findsOneWidget);
+    await tester.tap(find.text('Je vais chercher'));
+    await tester.pumpAndSettle();
     await tester.drag(
       find.byKey(const ValueKey('pigeondex-grid')),
       const Offset(0, -300),
@@ -109,6 +122,40 @@ void main() {
     gameController.dispose();
   });
 
+  testWidgets('opens the destination selected from a notification', (
+    tester,
+  ) async {
+    final settingsController = SettingsController(persistChanges: false);
+    final pigeonController = PigeonCollectionController(persistChanges: false);
+    final gameController = GameController(persistChanges: false);
+    final notificationService = LocalNotificationService(
+      useNativePlugin: false,
+    );
+    await tester.pumpWidget(
+      PidgeParkApp(
+        settingsController: settingsController,
+        pigeonCollectionController: pigeonController,
+        gameController: gameController,
+        notificationService: notificationService,
+        minimumSplashDuration: Duration.zero,
+        loadSettings: false,
+        showDailyGift: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    notificationService.simulateNotificationTap('daily_challenge');
+    await tester.pumpAndSettle();
+
+    expect(find.text('PIGEON DU JOUR'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    notificationService.dispose();
+    settingsController.dispose();
+    pigeonController.dispose();
+    gameController.dispose();
+  });
+
   testWidgets('opens a pigeon profile and increases affection', (tester) async {
     final settingsController = SettingsController(persistChanges: false);
     final pigeonController = PigeonCollectionController(persistChanges: false);
@@ -124,9 +171,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('7/10'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('give-gift')));
-    await tester.pump();
-    expect(find.text('8/10'), findsOneWidget);
+    for (var index = 0; index < 3; index++) {
+      await tester.tap(find.byKey(const ValueKey('give-gift')));
+      await tester.pump();
+    }
+    expect(find.text('10/10'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trésors'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 10'), findsOneWidget);
+    expect(find.text('Cuillère sale'), findsOneWidget);
 
     settingsController.dispose();
     pigeonController.dispose();
@@ -157,6 +213,97 @@ void main() {
     gameController.dispose();
     pigeonController.dispose();
   });
+
+  test('decorations can be bought, equipped, and attract visitors', () async {
+    var now = DateTime(2026, 9, 9, 22);
+    final gameController = GameController(
+      persistChanges: false,
+      useFastTimers: true,
+      now: () => now,
+    );
+    final decorationController = DecorationController(persistChanges: false);
+    final pigeonController = PigeonCollectionController(persistChanges: false);
+    final radio = decorations.firstWhere((item) => item.id == 'radio');
+
+    expect(await decorationController.buy(radio, gameController), isTrue);
+    expect(gameController.crumbs, 790);
+    await decorationController.toggleEquipped(radio);
+    expect(decorationController.equippedIds, contains('radio'));
+
+    await gameController.placeFood(foods.first);
+    now = now.add(const Duration(seconds: 9));
+    final result = await gameController.meetVisitor(
+      pigeonController,
+      decorationIds: decorationController.equippedIds.toSet(),
+    );
+    expect(result?.pigeon.id, 'disco_pigeon');
+    expect(result?.isNew, isTrue);
+
+    gameController.dispose();
+    decorationController.dispose();
+    pigeonController.dispose();
+  });
+
+  test('daily challenge rewards once and maintains the streak', () async {
+    var now = DateTime(2026, 9, 9, 12);
+    final dailyController = DailyChallengeController(
+      persistChanges: false,
+      now: () => now,
+    );
+    final gameController = GameController(persistChanges: false);
+    await dailyController.load();
+
+    final firstReward = await dailyController.recordEncounter(
+      dailyController.targetId,
+      gameController,
+    );
+    expect(firstReward?.crumbs, 250);
+    expect(dailyController.streak, 1);
+    expect(gameController.crumbs, 1490);
+    expect(
+      await dailyController.recordEncounter(
+        dailyController.targetId,
+        gameController,
+      ),
+      isNull,
+    );
+
+    now = now.add(const Duration(days: 1));
+    await dailyController.refreshDay();
+    await dailyController.recordEncounter(
+      dailyController.targetId,
+      gameController,
+    );
+    expect(dailyController.streak, 2);
+
+    dailyController.dispose();
+    gameController.dispose();
+  });
+
+  test('daily gift resets at 4 AM local time', () async {
+    var now = DateTime(2026, 9, 9, 3, 59);
+    const cycle = DailyCycle(resetHour: 4);
+    final giftController = DailyGiftController(
+      persistChanges: false,
+      now: () => now,
+      cycle: cycle,
+    );
+    final gameController = GameController(persistChanges: false);
+
+    expect(cycle.keyFor(now), '2026-09-08');
+    expect(await giftController.claim(gameController), isTrue);
+    expect(gameController.crumbs, 1340);
+    expect(await giftController.claim(gameController), isFalse);
+
+    now = DateTime(2026, 9, 9, 4);
+    expect(cycle.keyFor(now), '2026-09-09');
+    expect(giftController.isAvailable, isTrue);
+    expect(await giftController.claim(gameController), isTrue);
+    expect(gameController.crumbs, 1440);
+
+    giftController.dispose();
+    gameController.dispose();
+  });
 }
 
 Widget _testApp(
@@ -170,5 +317,6 @@ Widget _testApp(
     gameController: gameController,
     minimumSplashDuration: Duration.zero,
     loadSettings: false,
+    showDailyGift: false,
   );
 }

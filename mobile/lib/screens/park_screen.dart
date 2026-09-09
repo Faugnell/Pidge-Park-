@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../collection/pigeon_collection_controller.dart';
 import '../game/game_controller.dart';
+import '../game/decoration_controller.dart';
+import '../game/daily_challenge_controller.dart';
 import '../models/food.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pigeon_avatar.dart';
@@ -14,6 +16,11 @@ class ParkScreen extends StatefulWidget {
     required this.collectionController,
     required this.isFrench,
     required this.onOpenShop,
+    required this.decorationController,
+    required this.onOpenDecorations,
+    required this.dailyChallengeController,
+    required this.onOpenDailyChallenge,
+    required this.onGameStateChanged,
     super.key,
   });
 
@@ -21,6 +28,11 @@ class ParkScreen extends StatefulWidget {
   final PigeonCollectionController collectionController;
   final bool isFrench;
   final VoidCallback onOpenShop;
+  final DecorationController decorationController;
+  final VoidCallback onOpenDecorations;
+  final DailyChallengeController dailyChallengeController;
+  final VoidCallback onOpenDailyChallenge;
+  final Future<void> Function() onGameStateChanged;
 
   @override
   State<ParkScreen> createState() => _ParkScreenState();
@@ -73,6 +85,34 @@ class _ParkScreenState extends State<ParkScreen> {
                           value: game.feathers,
                         ),
                         const Spacer(),
+                        IconButton.filledTonal(
+                          key: const ValueKey('daily-challenge-button'),
+                          tooltip: widget.isFrench
+                              ? 'Pigeon du jour'
+                              : 'Pigeon of the day',
+                          onPressed: widget.onOpenDailyChallenge,
+                          icon: const Icon(Icons.calendar_today_outlined),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.navigationBackground,
+                            foregroundColor: AppColors.selected,
+                            side: const BorderSide(color: Color(0xFFCDBE9D)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton.filledTonal(
+                          key: const ValueKey('decorations-button'),
+                          tooltip: widget.isFrench
+                              ? 'Décorations'
+                              : 'Decorations',
+                          onPressed: widget.onOpenDecorations,
+                          icon: const Icon(Icons.chair_alt_outlined),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.navigationBackground,
+                            foregroundColor: AppColors.selected,
+                            side: const BorderSide(color: Color(0xFFCDBE9D)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         IconButton.filledTonal(
                           key: const ValueKey('shop-button'),
                           tooltip: widget.isFrench ? 'Boutique' : 'Shop',
@@ -155,6 +195,7 @@ class _ParkScreenState extends State<ParkScreen> {
     if (food == null || !mounted) return;
 
     final placed = await widget.gameController.placeFood(food);
+    if (placed) await widget.onGameStateChanged();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -174,8 +215,15 @@ class _ParkScreenState extends State<ParkScreen> {
   Future<void> _meetVisitor() async {
     final result = await widget.gameController.meetVisitor(
       widget.collectionController,
+      decorationIds: widget.decorationController.equippedIds.toSet(),
     );
     if (result == null || !mounted) return;
+    final dailyReward = await widget.dailyChallengeController.recordEncounter(
+      result.pigeon.id,
+      widget.gameController,
+    );
+    await widget.onGameStateChanged();
+    if (!mounted) return;
 
     await showDialog<void>(
       context: context,
@@ -203,6 +251,32 @@ class _ParkScreenState extends State<ParkScreen> {
               '+${result.reward} ${widget.isFrench ? 'miettes' : 'crumbs'}',
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
+            if (result.unlockedTreasure != null) ...[
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              Icon(result.unlockedTreasure!.icon, size: 34),
+              const SizedBox(height: 6),
+              Text(
+                widget.isFrench ? 'NOUVEAU TRÉSOR !' : 'NEW TREASURE!',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text(result.unlockedTreasure!.name(widget.isFrench)),
+            ],
+            if (dailyReward != null) ...[
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                widget.isFrench
+                    ? 'DÉFI DU JOUR RÉUSSI !'
+                    : 'DAILY CHALLENGE COMPLETE!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text('+${dailyReward.crumbs} 🪙'),
+              if (dailyReward.feathers > 0) Text('+${dailyReward.feathers} ✨'),
+            ],
           ],
         ),
         actionsAlignment: MainAxisAlignment.center,

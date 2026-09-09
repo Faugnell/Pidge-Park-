@@ -7,11 +7,13 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     required this.controller,
     required this.onResetProgress,
+    required this.onNotificationsChanged,
     super.key,
   });
 
   final SettingsController controller;
   final Future<void> Function() onResetProgress;
+  final Future<void> Function(bool) onNotificationsChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -55,11 +57,11 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 16),
             _SettingsCard(
               children: [
-                _SettingsTile(
+                _SettingsSwitch(
                   icon: Icons.notifications_none,
                   title: isFrench ? 'Notifications' : 'Notifications',
-                  subtitle: isFrench ? 'Bientôt disponible' : 'Coming soon',
-                  trailing: const Icon(Icons.lock_clock_outlined),
+                  value: controller.notificationsEnabled,
+                  onChanged: onNotificationsChanged,
                 ),
                 _SettingsTile(
                   key: const ValueKey('language-setting'),

@@ -30,14 +30,7 @@ class PigeonCollectionController extends ChangeNotifier {
            : null;
 
   static const _discoveredKey = 'pigeons.discovered';
-  static const _defaultDiscovered = <String>{
-    'gilbert',
-    'michel',
-    'chunky',
-    'kevin',
-    'brenda',
-    'jean_pigeon',
-  };
+  static const _defaultDiscovered = <String>{'gilbert'};
 
   final SharedPreferencesAsync? _preferences;
   final Map<String, PigeonProgress> _progress = {};
