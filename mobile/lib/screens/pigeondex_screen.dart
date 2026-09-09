@@ -93,25 +93,50 @@ class _PigeondexScreenState extends State<PigeondexScreen> {
                     pigeon: pigeon,
                     progress: progress,
                     isFrench: widget.isFrench,
-                    onTap: progress.discovered
-                        ? () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => PigeonDetailScreen(
-                                  pigeon: pigeon,
-                                  controller: widget.controller,
-                                  isFrench: widget.isFrench,
-                                ),
-                              ),
-                            );
-                          }
-                        : null,
+                    onTap: () {
+                      if (!progress.discovered) {
+                        _showHint(context, pigeon);
+                        return;
+                      }
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PigeonDetailScreen(
+                            pigeon: pigeon,
+                            controller: widget.controller,
+                            isFrench: widget.isFrench,
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showHint(BuildContext context, Pigeon pigeon) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.splashBackground,
+        icon: const Icon(Icons.help_outline, size: 38),
+        title: Text('#${pigeon.number.toString().padLeft(3, '0')} — ???'),
+        content: Text(
+          '« ${pigeon.hint(widget.isFrench)} »',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              widget.isFrench ? 'Je vais chercher' : 'I’ll investigate',
+            ),
+          ),
+        ],
       ),
     );
   }

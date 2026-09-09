@@ -43,7 +43,7 @@ const foods = <Food>[
     debugDuration: Duration(seconds: 8),
     icon: Icons.grass,
     color: Color(0xFFD6A64F),
-    visitorIds: ['gilbert', 'michel', 'chunky'],
+    visitorIds: ['gilbert', 'michel', 'chonky'],
   ),
   Food(
     id: 'bread',
@@ -69,7 +69,7 @@ const foods = <Food>[
     debugDuration: Duration(seconds: 12),
     icon: Icons.fastfood,
     color: Color(0xFFE4B743),
-    visitorIds: ['kevin', 'chunky', 'brenda'],
+    visitorIds: ['kevin', 'chonky', 'brenda'],
   ),
   Food(
     id: 'croissant',
@@ -95,7 +95,7 @@ const foods = <Food>[
     debugDuration: Duration(seconds: 16),
     icon: Icons.local_pizza,
     color: Color(0xFFD76845),
-    visitorIds: ['sir_pigeonton', 'kevin', 'chunky'],
+    visitorIds: ['sir_pigeonton', 'kevin', 'chonky'],
   ),
   Food(
     id: 'premium_seeds',
