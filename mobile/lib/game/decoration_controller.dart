@@ -24,14 +24,23 @@ class DecorationController extends ChangeNotifier {
     if (preferences == null) return;
     ownedIds =
         (await preferences.getStringList(_ownedKey))?.toSet() ?? {'bench'};
-    equippedIds = await preferences.getStringList(_equippedKey) ?? ['bench'];
-    equippedIds = equippedIds.where(ownedIds.contains).take(3).toList();
+    final savedEquipped =
+        await preferences.getStringList(_equippedKey) ?? ['bench'];
+    equippedIds = _onePerSize(savedEquipped.where(ownedIds.contains));
     notifyListeners();
   }
 
   bool isOwned(ParkDecoration decoration) => ownedIds.contains(decoration.id);
   bool isEquipped(ParkDecoration decoration) =>
       equippedIds.contains(decoration.id);
+
+  ParkDecoration? equippedFor(DecorationSize size) {
+    for (final id in equippedIds) {
+      final decoration = decorations.firstWhere((item) => item.id == id);
+      if (decoration.size == size) return decoration;
+    }
+    return null;
+  }
 
   Future<bool> buy(ParkDecoration decoration, GameController game) async {
     if (isOwned(decoration) || game.crumbs < decoration.price) return false;
@@ -46,11 +55,29 @@ class DecorationController extends ChangeNotifier {
     if (!isOwned(decoration)) return;
     if (isEquipped(decoration)) {
       equippedIds = equippedIds.where((id) => id != decoration.id).toList();
-    } else if (equippedIds.length < 3) {
-      equippedIds = [...equippedIds, decoration.id];
+    } else {
+      equippedIds = [
+        for (final id in equippedIds)
+          if (decorations.firstWhere((item) => item.id == id).size !=
+              decoration.size)
+            id,
+        decoration.id,
+      ];
     }
     notifyListeners();
     await _save();
+  }
+
+  List<String> _onePerSize(Iterable<String> ids) {
+    final result = <String>[];
+    final occupied = <DecorationSize>{};
+    for (final id in ids) {
+      final matches = decorations.where((item) => item.id == id);
+      if (matches.isEmpty) continue;
+      final decoration = matches.first;
+      if (occupied.add(decoration.size)) result.add(id);
+    }
+    return result;
   }
 
   Future<void> resetAllData() async {

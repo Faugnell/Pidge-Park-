@@ -1,5 +1,17 @@
 import 'package:flutter/material.dart';
 
+enum DecorationSize {
+  large('Grand', 'Large'),
+  medium('Moyen', 'Medium'),
+  small('Petit', 'Small');
+
+  const DecorationSize(this.nameFr, this.nameEn);
+  final String nameFr;
+  final String nameEn;
+
+  String name(bool isFrench) => isFrench ? nameFr : nameEn;
+}
+
 class ParkDecoration {
   const ParkDecoration({
     required this.id,
@@ -7,6 +19,7 @@ class ParkDecoration {
     required this.nameEn,
     required this.price,
     required this.icon,
+    required this.size,
   });
 
   final String id;
@@ -14,6 +27,7 @@ class ParkDecoration {
   final String nameEn;
   final int price;
   final IconData icon;
+  final DecorationSize size;
 
   String name(bool isFrench) => isFrench ? nameFr : nameEn;
 }
@@ -25,6 +39,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Bench',
     price: 0,
     icon: Icons.chair_alt,
+    size: DecorationSize.medium,
   ),
   ParkDecoration(
     id: 'fountain',
@@ -32,6 +47,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Fountain',
     price: 250,
     icon: Icons.water_drop_outlined,
+    size: DecorationSize.medium,
   ),
   ParkDecoration(
     id: 'trash',
@@ -39,6 +55,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Bin',
     price: 150,
     icon: Icons.delete_outline,
+    size: DecorationSize.medium,
   ),
   ParkDecoration(
     id: 'lamp',
@@ -46,6 +63,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Lamp post',
     price: 300,
     icon: Icons.light_outlined,
+    size: DecorationSize.large,
   ),
   ParkDecoration(
     id: 'radio',
@@ -53,6 +71,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Radio',
     price: 450,
     icon: Icons.radio_outlined,
+    size: DecorationSize.small,
   ),
   ParkDecoration(
     id: 'statue',
@@ -60,6 +79,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Statue',
     price: 700,
     icon: Icons.account_balance,
+    size: DecorationSize.large,
   ),
   ParkDecoration(
     id: 'easel',
@@ -67,6 +87,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Easel',
     price: 500,
     icon: Icons.brush_outlined,
+    size: DecorationSize.medium,
   ),
   ParkDecoration(
     id: 'books',
@@ -74,6 +95,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Books',
     price: 400,
     icon: Icons.auto_stories_outlined,
+    size: DecorationSize.small,
   ),
   ParkDecoration(
     id: 'flowers',
@@ -81,6 +103,7 @@ const decorations = <ParkDecoration>[
     nameEn: 'Flowers',
     price: 350,
     icon: Icons.local_florist_outlined,
+    size: DecorationSize.small,
   ),
   ParkDecoration(
     id: 'baguette_stand',
@@ -88,5 +111,6 @@ const decorations = <ParkDecoration>[
     nameEn: 'Baguette stand',
     price: 850,
     icon: Icons.bakery_dining,
+    size: DecorationSize.medium,
   ),
 ];

@@ -40,6 +40,14 @@ const translations = {
     "follow.button": "Follow Along",
     "faq.title": "Frequently asked questions",
     "faq.description": "More information about Pidge Park is coming soon.",
+    "information.privacy.title": "Privacy",
+    "information.privacy.description": "Our full privacy policy will be published before the game is released.",
+    "information.terms.title": "Terms",
+    "information.terms.description": "The terms of use will be available before downloads and purchases open.",
+    "information.contact.title": "Contact",
+    "information.contact.description": "Contact details for players and partners are coming soon.",
+    "information.press.title": "Press",
+    "information.press.description": "A press kit with logos, artwork and game information is in preparation.",
     "footer.tagline": "A cosier world, one pigeon at a time.",
     "footer.privacy": "Privacy",
     "footer.terms": "Terms",
@@ -87,6 +95,14 @@ const translations = {
     "follow.button": "Nous suivre",
     "faq.title": "Questions fréquentes",
     "faq.description": "Plus d’informations sur Pidge Park seront bientôt disponibles.",
+    "information.privacy.title": "Confidentialité",
+    "information.privacy.description": "Notre politique de confidentialité complète sera publiée avant la sortie du jeu.",
+    "information.terms.title": "Conditions",
+    "information.terms.description": "Les conditions d’utilisation seront disponibles avant l’ouverture des téléchargements et des achats.",
+    "information.contact.title": "Contact",
+    "information.contact.description": "Les coordonnées destinées aux joueurs et aux partenaires seront bientôt disponibles.",
+    "information.press.title": "Presse",
+    "information.press.description": "Un kit presse avec les logos, les illustrations et les informations du jeu est en préparation.",
     "footer.tagline": "Un monde plus douillet, un pigeon à la fois.",
     "footer.privacy": "Confidentialité",
     "footer.terms": "Conditions",
@@ -160,7 +176,7 @@ languageSelect.addEventListener("change", (event) => {
   applyLanguage(selectedLanguage);
 });
 
-const navigationLinks = [...document.querySelectorAll('.main-navigation a[href^="#"]')];
+const navigationLinks = [...document.querySelectorAll(".main-navigation a[href^=\"#\"]")];
 const header = document.querySelector(".site-header");
 const navigationTargets = navigationLinks
   .map((link) => ({
@@ -183,7 +199,12 @@ function setActiveNavigation(activeLink) {
 }
 
 function updateActiveNavigation() {
-  const headerOffset = header.offsetHeight + 48;
+  const effectiveScrollPadding = Number.parseFloat(
+    window.getComputedStyle(document.documentElement).scrollPaddingTop
+  );
+  const headerOffset = Number.isFinite(effectiveScrollPadding)
+    ? effectiveScrollPadding
+    : header.offsetHeight + 20;
   const scrollPosition = window.scrollY + headerOffset;
   let activeItem = navigationTargets[0];
 
