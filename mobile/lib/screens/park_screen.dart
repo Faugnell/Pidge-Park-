@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 
 import '../collection/pigeon_collection_controller.dart';
 import '../game/game_controller.dart';
+import '../game/friendship_activity_controller.dart';
+import '../game/visit_journal_controller.dart';
 import '../game/decoration_controller.dart';
 import '../game/daily_challenge_controller.dart';
 import '../models/food.dart';
+import '../models/pigeon.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pigeon_avatar.dart';
+import '../widgets/pigeon_share_card.dart';
 import '../widgets/park_scene.dart';
 
 class ParkScreen extends StatefulWidget {
@@ -22,6 +26,11 @@ class ParkScreen extends StatefulWidget {
     required this.dailyChallengeController,
     required this.onOpenDailyChallenge,
     required this.onGameStateChanged,
+    required this.friendshipActivityController,
+    required this.onOpenActivityPigeon,
+    required this.onAchievementEvent,
+    required this.visitJournalController,
+    required this.onOpenJournal,
     super.key,
   });
 
@@ -34,6 +43,16 @@ class ParkScreen extends StatefulWidget {
   final DailyChallengeController dailyChallengeController;
   final VoidCallback onOpenDailyChallenge;
   final Future<void> Function() onGameStateChanged;
+  final FriendshipActivityController friendshipActivityController;
+  final VoidCallback onOpenActivityPigeon;
+  final Future<void> Function({
+    String? foodId,
+    bool flockWelcomed,
+    bool missionDayCompleted,
+  })
+  onAchievementEvent;
+  final VisitJournalController visitJournalController;
+  final VoidCallback onOpenJournal;
 
   @override
   State<ParkScreen> createState() => _ParkScreenState();
@@ -41,13 +60,42 @@ class ParkScreen extends StatefulWidget {
 
 class _ParkScreenState extends State<ParkScreen> {
   Timer? _ticker;
+  List<Pigeon> _ambientFlock = const [];
+  List<Pigeon> _visitorFlock = const [];
 
   @override
   void initState() {
     super.initState();
+    _refreshAmbientFlock();
+    _prepareVisitorsIfReady();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && widget.gameController.hasActiveFood) setState(() {});
+      if (!mounted) return;
+      final hasActiveFood = widget.gameController.hasActiveFood;
+      final hasFriendshipActivity =
+          widget.friendshipActivityController.hasActiveActivity;
+      if (!hasActiveFood && !hasFriendshipActivity) return;
+      if (hasActiveFood &&
+          widget.gameController.visitorReady &&
+          _visitorFlock.isEmpty) {
+        setState(_prepareVisitorsIfReady);
+      } else {
+        setState(() {});
+      }
     });
+  }
+
+  void _refreshAmbientFlock() {
+    _ambientFlock = widget.gameController.selectAmbientPigeons(
+      widget.collectionController,
+    );
+  }
+
+  void _prepareVisitorsIfReady() {
+    if (!widget.gameController.visitorReady || _visitorFlock.isNotEmpty) return;
+    _visitorFlock = widget.gameController.selectFoodVisitors(
+      widget.collectionController,
+      decorationIds: widget.decorationController.equippedIds.toSet(),
+    );
   }
 
   @override
@@ -62,6 +110,7 @@ class _ParkScreenState extends State<ParkScreen> {
       animation: Listenable.merge([
         widget.gameController,
         widget.decorationController,
+        widget.friendshipActivityController,
       ]),
       builder: (context, _) {
         final game = widget.gameController;
@@ -92,8 +141,8 @@ class _ParkScreenState extends State<ParkScreen> {
                         IconButton.filledTonal(
                           key: const ValueKey('daily-challenge-button'),
                           tooltip: widget.isFrench
-                              ? 'Pigeon du jour'
-                              : 'Pigeon of the day',
+                              ? 'Défis du jour'
+                              : 'Daily challenges',
                           onPressed: widget.onOpenDailyChallenge,
                           icon: const Icon(Icons.calendar_today_outlined),
                           style: IconButton.styleFrom(
@@ -132,12 +181,58 @@ class _ParkScreenState extends State<ParkScreen> {
                     ),
                     const SizedBox(height: 12),
                     Expanded(
-                      child: ParkScene(
-                        gameController: game,
-                        decorationController: widget.decorationController,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ParkScene(
+                              gameController: game,
+                              decorationController: widget.decorationController,
+                              pigeons: game.hasActiveFood
+                                  ? (game.visitorReady
+                                        ? _visitorFlock
+                                        : const [])
+                                  : _ambientPigeonsWithoutBusyPigeon(),
+                              knownPigeonIds: {
+                                for (final pigeon in pigeons)
+                                  if (widget.collectionController
+                                      .progressFor(pigeon.id)
+                                      .discovered)
+                                    pigeon.id,
+                              },
+                              onPigeonTap: _showPigeonPreview,
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: IconButton.filledTonal(
+                              key: const ValueKey('visit-journal-button'),
+                              tooltip: widget.isFrench
+                                  ? 'Journal des visites'
+                                  : 'Visit journal',
+                              onPressed: widget.onOpenJournal,
+                              icon: const Icon(Icons.menu_book_outlined),
+                              style: IconButton.styleFrom(
+                                backgroundColor: AppColors.navigationBackground,
+                                foregroundColor: AppColors.selected,
+                                side: const BorderSide(
+                                  color: Color(0xFFCDBE9D),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 10),
+                    if (widget.friendshipActivityController.hasActiveActivity)
+                      _ActiveFriendshipActivity(
+                        controller: widget.friendshipActivityController,
+                        isFrench: widget.isFrench,
+                        onOpenPigeon: widget.onOpenActivityPigeon,
+                      ),
+                    if (widget.friendshipActivityController.hasActiveActivity)
+                      const SizedBox(height: 8),
                     _ParkStatus(
                       gameController: game,
                       isFrench: widget.isFrench,
@@ -150,8 +245,8 @@ class _ParkScreenState extends State<ParkScreen> {
                         icon: const Icon(Icons.flutter_dash),
                         label: Text(
                           widget.isFrench
-                              ? 'DÉCOUVRIR LE VISITEUR'
-                              : 'MEET THE VISITOR',
+                              ? 'DÉCOUVRIR LES VISITEURS'
+                              : 'MEET THE VISITORS',
                         ),
                         style: _primaryButtonStyle(),
                       )
@@ -172,6 +267,15 @@ class _ParkScreenState extends State<ParkScreen> {
         );
       },
     );
+  }
+
+  List<Pigeon> _ambientPigeonsWithoutBusyPigeon() {
+    final busyId = widget.friendshipActivityController.activePigeonId;
+    if (busyId == null) return _ambientFlock;
+    final result = List<Pigeon>.of(_ambientFlock);
+    final index = result.indexWhere((pigeon) => pigeon.id == busyId);
+    if (index >= 0 && result.length > 1) result.removeAt(index);
+    return result;
   }
 
   ButtonStyle _primaryButtonStyle() {
@@ -200,6 +304,9 @@ class _ParkScreenState extends State<ParkScreen> {
     if (food == null || !mounted) return;
 
     final placed = await widget.gameController.placeFood(food);
+    if (placed) _visitorFlock = const [];
+    if (placed) await widget.dailyChallengeController.recordParkFed();
+    if (placed) await widget.onAchievementEvent(foodId: food.id);
     if (placed) await widget.onGameStateChanged();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -218,15 +325,44 @@ class _ParkScreenState extends State<ParkScreen> {
   }
 
   Future<void> _meetVisitor() async {
-    final result = await widget.gameController.meetVisitor(
+    _prepareVisitorsIfReady();
+    final usedFoodId = widget.gameController.activeFoodId;
+    final result = await widget.gameController.meetVisitors(
       widget.collectionController,
-      decorationIds: widget.decorationController.equippedIds.toSet(),
+      _visitorFlock,
     );
     if (result == null || !mounted) return;
-    final dailyReward = await widget.dailyChallengeController.recordEncounter(
-      result.pigeon.id,
-      widget.gameController,
+    DailyReward? dailyReward;
+    for (final encounter in result.encounters) {
+      dailyReward ??= await widget.dailyChallengeController.recordEncounter(
+        encounter.pigeon.id,
+        widget.gameController,
+      );
+    }
+    await widget.dailyChallengeController.recordWelcomedPigeons(
+      result.encounters.length,
     );
+    await widget.onAchievementEvent(flockWelcomed: true);
+    if (usedFoodId != null) {
+      await widget.visitJournalController.record(
+        VisitJournalEntry(
+          visitedAt: DateTime.now(),
+          foodId: usedFoodId,
+          pigeonIds: result.encounters.map((item) => item.pigeon.id).toList(),
+          newPigeonIds: result.encounters
+              .where((item) => item.isNew)
+              .map((item) => item.pigeon.id)
+              .toList(),
+          crumbReward: result.totalReward,
+          treasureIds: result.encounters
+              .map((item) => item.unlockedTreasure?.id)
+              .whereType<String>()
+              .toList(),
+        ),
+      );
+    }
+    _visitorFlock = const [];
+    _refreshAmbientFlock();
     await widget.onGameStateChanged();
     if (!mounted) return;
 
@@ -236,37 +372,87 @@ class _ParkScreenState extends State<ParkScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.splashBackground,
         title: Text(
-          result.isNew
-              ? (widget.isFrench ? 'NOUVEAU PIGEON !' : 'NEW PIGEON!')
-              : (widget.isFrench ? 'IL EST DE RETOUR !' : 'WELCOME BACK!'),
+          result.encounters.any((item) => item.isNew)
+              ? (widget.isFrench ? 'NOUVEAUX VISITEURS !' : 'NEW VISITORS!')
+              : (widget.isFrench ? 'LA BANDE EST LÀ !' : 'THE FLOCK IS HERE!'),
           textAlign: TextAlign.center,
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PigeonAvatar(pigeon: result.pigeon, size: 130),
-            const SizedBox(height: 12),
-            Text(
-              result.pigeon.name,
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final encounter in result.encounters)
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PigeonAvatar(pigeon: encounter.pigeon, size: 72),
+                      Text(
+                        encounter.pigeon.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      if (encounter.isNew)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.isFrench ? 'Nouveau !' : 'New!',
+                              style: const TextStyle(color: AppColors.selected),
+                            ),
+                            IconButton(
+                              key: ValueKey(
+                                'share-new-pigeon-${encounter.pigeon.id}',
+                              ),
+                              tooltip: widget.isFrench ? 'Partager' : 'Share',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => showPigeonShareCard(
+                                context,
+                                pigeon: encounter.pigeon,
+                                progress: widget.collectionController
+                                    .progressFor(encounter.pigeon.id),
+                                isFrench: widget.isFrench,
+                                isNew: true,
+                              ),
+                              icon: const Icon(Icons.ios_share, size: 18),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+              ],
             ),
             const SizedBox(height: 10),
             Text(
-              '+${result.reward} ${widget.isFrench ? 'miettes' : 'crumbs'}',
+              '+${result.totalReward} ${widget.isFrench ? 'miettes' : 'crumbs'}',
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-            if (result.unlockedTreasure != null) ...[
+            if (result.encounters.any(
+              (item) => item.unlockedTreasure != null,
+            )) ...[
               const SizedBox(height: 14),
               const Divider(),
               const SizedBox(height: 8),
-              Icon(result.unlockedTreasure!.icon, size: 34),
+              Icon(
+                result.encounters
+                    .firstWhere((item) => item.unlockedTreasure != null)
+                    .unlockedTreasure!
+                    .icon,
+                size: 34,
+              ),
               const SizedBox(height: 6),
               Text(
                 widget.isFrench ? 'NOUVEAU TRÉSOR !' : 'NEW TREASURE!',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
-              Text(result.unlockedTreasure!.name(widget.isFrench)),
+              Text(
+                result.encounters
+                    .firstWhere((item) => item.unlockedTreasure != null)
+                    .unlockedTreasure!
+                    .name(widget.isFrench),
+              ),
             ],
             if (dailyReward != null) ...[
               const SizedBox(height: 14),
@@ -289,6 +475,57 @@ class _ParkScreenState extends State<ParkScreen> {
           FilledButton(
             onPressed: () => Navigator.pop(context),
             child: Text(widget.isFrench ? 'Super !' : 'Great!'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPigeonPreview(Pigeon pigeon) async {
+    final progress = widget.collectionController.progressFor(pigeon.id);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: ValueKey('park-pigeon-preview-${pigeon.id}'),
+        backgroundColor: AppColors.splashBackground,
+        icon: PigeonAvatar(pigeon: pigeon, size: 92),
+        title: Text(pigeon.name, textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: pigeon.rarity.color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                pigeon.rarity.label(widget.isFrench),
+                style: TextStyle(
+                  color: pigeon.rarity.color,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              progress.discovered
+                  ? (widget.isFrench
+                        ? 'Amitié : ${progress.affection}/10'
+                        : 'Friendship: ${progress.affection}/10')
+                  : (widget.isFrench
+                        ? 'Nouveau visiteur — récupère le groupe pour l’ajouter au Pigeondex.'
+                        : 'New visitor — collect the flock to add it to the Pigeondex.'),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(pigeon.hint(widget.isFrench), textAlign: TextAlign.center),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(widget.isFrench ? 'Fermer' : 'Close'),
           ),
         ],
       ),
@@ -327,6 +564,70 @@ class _CurrencyPill extends StatelessWidget {
   }
 }
 
+class _ActiveFriendshipActivity extends StatelessWidget {
+  const _ActiveFriendshipActivity({
+    required this.controller,
+    required this.isFrench,
+    required this.onOpenPigeon,
+  });
+
+  final FriendshipActivityController controller;
+  final bool isFrench;
+  final VoidCallback onOpenPigeon;
+
+  @override
+  Widget build(BuildContext context) {
+    final pigeon = pigeons
+        .where((item) => item.id == controller.activePigeonId)
+        .firstOrNull;
+    final activity = controller.activeActivity;
+    if (pigeon == null || activity == null) return const SizedBox.shrink();
+    return Material(
+      key: const ValueKey('active-friendship-activity-park'),
+      color: AppColors.navigationBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFCDBE9D)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: controller.isComplete ? onOpenPigeon : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                controller.isComplete ? Icons.check_circle : Icons.schedule,
+                size: 18,
+                color: AppColors.selected,
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  controller.isComplete
+                      ? (isFrench
+                            ? 'Activité avec ${pigeon.name} terminée !'
+                            : 'Activity with ${pigeon.name} complete!')
+                      : (isFrench
+                            ? '${activity.label(true)} avec ${pigeon.name}'
+                            : '${activity.label(false)} with ${pigeon.name}'),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (controller.isComplete) ...[
+                const SizedBox(width: 5),
+                const Icon(Icons.chevron_right, size: 20),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ParkStatus extends StatelessWidget {
   const _ParkStatus({required this.gameController, required this.isFrench});
 
@@ -347,7 +648,7 @@ class _ParkStatus extends StatelessWidget {
 
     if (gameController.visitorReady) {
       return Text(
-        isFrench ? 'Un pigeon est arrivé !' : 'A pigeon has arrived!',
+        isFrench ? 'Les pigeons sont arrivés !' : 'The pigeons have arrived!',
         style: Theme.of(context).textTheme.titleLarge
             ?.copyWith(fontWeight: FontWeight.w800),
       );

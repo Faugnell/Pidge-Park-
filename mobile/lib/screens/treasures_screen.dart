@@ -68,8 +68,8 @@ class TreasuresScreen extends StatelessWidget {
                       Flexible(
                         child: Text(
                           isFrench
-                              ? 'Atteins 10 cœurs avec un pigeon pour recevoir son trésor.'
-                              : 'Reach 10 hearts with a pigeon to receive its treasure.',
+                              ? 'Atteins le niveau 6 et récupère sa récompense pour recevoir son trésor.'
+                              : 'Reach level 6 and claim its reward to receive the treasure.',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -85,8 +85,10 @@ class TreasuresScreen extends StatelessWidget {
   }
 
   bool _isUnlocked(PigeonTreasure treasure) {
-    return collectionController.progressFor(treasure.pigeonId).affection >=
-        treasure.requiredAffection;
+    return collectionController.hasClaimedFriendshipMilestone(
+      treasure.pigeonId,
+      treasure.requiredAffection,
+    );
   }
 
   void _showDetails(BuildContext context, PigeonTreasure treasure) {

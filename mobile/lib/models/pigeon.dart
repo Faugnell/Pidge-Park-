@@ -15,6 +15,8 @@ enum PigeonRarity {
 
 enum VisitPeriod { any, morning, night }
 
+enum PigeonWeather { any, sunny, cloudy, rainy }
+
 class Pigeon {
   const Pigeon({
     required this.id,
@@ -29,6 +31,7 @@ class Pigeon {
     this.foodIds = const [],
     this.decorationIds = const [],
     this.period = VisitPeriod.any,
+    this.weather = PigeonWeather.any,
     this.accessory,
   });
 
@@ -44,6 +47,7 @@ class Pigeon {
   final List<String> foodIds;
   final List<String> decorationIds;
   final VisitPeriod period;
+  final PigeonWeather weather;
   final IconData? accessory;
 
   String hint(bool isFrench) => isFrench ? hintFr : hintEn;

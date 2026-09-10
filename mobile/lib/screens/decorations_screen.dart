@@ -10,12 +10,14 @@ class DecorationsScreen extends StatelessWidget {
     required this.controller,
     required this.gameController,
     required this.isFrench,
+    required this.onChanged,
     super.key,
   });
 
   final DecorationController controller;
   final GameController gameController;
   final bool isFrench;
+  final Future<void> Function() onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +128,7 @@ class DecorationsScreen extends StatelessWidget {
       return;
     }
     await controller.toggleEquipped(decoration);
+    await onChanged();
   }
 }
 

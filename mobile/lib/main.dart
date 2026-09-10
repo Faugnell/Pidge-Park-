@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'collection/pigeon_collection_controller.dart';
 import 'game/game_controller.dart';
+import 'game/achievement_controller.dart';
+import 'game/friendship_activity_controller.dart';
+import 'game/visit_journal_controller.dart';
 import 'game/decoration_controller.dart';
 import 'game/daily_challenge_controller.dart';
 import 'game/daily_gift_controller.dart';
@@ -24,9 +27,13 @@ class PidgeParkApp extends StatefulWidget {
     this.dailyChallengeController,
     this.dailyGiftController,
     this.notificationService,
+    this.friendshipActivityController,
     this.minimumSplashDuration = const Duration(milliseconds: 1400),
     this.loadSettings = true,
     this.showDailyGift = true,
+    this.showOnboarding,
+    this.achievementController,
+    this.visitJournalController,
     super.key,
   });
 
@@ -37,9 +44,13 @@ class PidgeParkApp extends StatefulWidget {
   final DailyChallengeController? dailyChallengeController;
   final DailyGiftController? dailyGiftController;
   final LocalNotificationService? notificationService;
+  final FriendshipActivityController? friendshipActivityController;
   final Duration minimumSplashDuration;
   final bool loadSettings;
   final bool showDailyGift;
+  final bool? showOnboarding;
+  final AchievementController? achievementController;
+  final VisitJournalController? visitJournalController;
 
   @override
   State<PidgeParkApp> createState() => _PidgeParkAppState();
@@ -53,6 +64,9 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
   late final DailyChallengeController _dailyChallengeController;
   late final DailyGiftController _dailyGiftController;
   late final LocalNotificationService _notificationService;
+  late final FriendshipActivityController _friendshipActivityController;
+  late final AchievementController _achievementController;
+  late final VisitJournalController _visitJournalController;
   late final Future<void> _initialization;
   late final bool _ownsController;
   late final bool _ownsPigeonController;
@@ -61,6 +75,9 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
   late final bool _ownsDailyController;
   late final bool _ownsDailyGiftController;
   late final bool _ownsNotificationService;
+  late final bool _ownsFriendshipActivityController;
+  late final bool _ownsAchievementController;
+  late final bool _ownsVisitJournalController;
 
   @override
   void initState() {
@@ -72,6 +89,10 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
     _ownsDailyController = widget.dailyChallengeController == null;
     _ownsDailyGiftController = widget.dailyGiftController == null;
     _ownsNotificationService = widget.notificationService == null;
+    _ownsFriendshipActivityController =
+        widget.friendshipActivityController == null;
+    _ownsAchievementController = widget.achievementController == null;
+    _ownsVisitJournalController = widget.visitJournalController == null;
     _settingsController = widget.settingsController ?? SettingsController();
     _pigeonCollectionController =
         widget.pigeonCollectionController ?? PigeonCollectionController();
@@ -88,6 +109,15 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
     _notificationService =
         widget.notificationService ??
         LocalNotificationService(useNativePlugin: widget.loadSettings);
+    _friendshipActivityController =
+        widget.friendshipActivityController ??
+        FriendshipActivityController(persistChanges: widget.loadSettings);
+    _achievementController =
+        widget.achievementController ??
+        AchievementController(persistChanges: widget.loadSettings);
+    _visitJournalController =
+        widget.visitJournalController ??
+        VisitJournalController(persistChanges: widget.loadSettings);
     _initialization = _initialize();
   }
 
@@ -99,6 +129,9 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
       if (widget.loadSettings) _decorationController.load(),
       if (widget.loadSettings) _dailyChallengeController.load(),
       if (widget.loadSettings) _dailyGiftController.load(),
+      if (widget.loadSettings) _friendshipActivityController.load(),
+      if (widget.loadSettings) _achievementController.load(),
+      if (widget.loadSettings) _visitJournalController.load(),
       Future<void>.delayed(widget.minimumSplashDuration),
     ]);
     await _notificationService.initialize();
@@ -112,6 +145,7 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
       game: _gameController,
       challenge: _dailyChallengeController,
       gift: _dailyGiftController,
+      friendshipActivity: _friendshipActivityController,
     );
   }
 
@@ -124,6 +158,11 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
     if (_ownsDailyController) _dailyChallengeController.dispose();
     if (_ownsDailyGiftController) _dailyGiftController.dispose();
     if (_ownsNotificationService) _notificationService.dispose();
+    if (_ownsFriendshipActivityController) {
+      _friendshipActivityController.dispose();
+    }
+    if (_ownsAchievementController) _achievementController.dispose();
+    if (_ownsVisitJournalController) _visitJournalController.dispose();
     super.dispose();
   }
 
@@ -152,7 +191,11 @@ class _PidgeParkAppState extends State<PidgeParkApp> {
                 dailyChallengeController: _dailyChallengeController,
                 dailyGiftController: _dailyGiftController,
                 notificationService: _notificationService,
+                friendshipActivityController: _friendshipActivityController,
                 showDailyGift: widget.showDailyGift,
+                showOnboarding: widget.showOnboarding ?? widget.loadSettings,
+                achievementController: _achievementController,
+                visitJournalController: _visitJournalController,
               );
             },
           ),

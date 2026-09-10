@@ -22,6 +22,14 @@ class EncounterResult {
   final PigeonTreasure? unlockedTreasure;
 }
 
+class FlockEncounterResult {
+  const FlockEncounterResult(this.encounters);
+
+  final List<EncounterResult> encounters;
+  int get totalReward =>
+      encounters.fold(0, (total, item) => total + item.reward);
+}
+
 class GameController extends ChangeNotifier {
   GameController({
     SharedPreferencesAsync? preferences,
@@ -119,6 +127,186 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
+  List<Pigeon> selectAmbientPigeons(PigeonCollectionController collection) {
+    final discovered = pigeons
+        .where((pigeon) => collection.progressFor(pigeon.id).discovered)
+        .toList();
+    if (discovered.isEmpty) {
+      return [pigeons.first, pigeons.first, pigeons.first];
+    }
+    final count = 3 + _random.nextInt(2);
+    return _weightedSelection(
+      discovered,
+      count,
+      (pigeon) => 1 + collection.progressFor(pigeon.id).friendshipPoints,
+      allowRepeatsWhenNeeded: true,
+    );
+  }
+
+  List<Pigeon> selectFoodVisitors(
+    PigeonCollectionController collection, {
+    Set<String> decorationIds = const {},
+  }) {
+    final food = activeFood;
+    if (food == null || !visitorReady) return const [];
+    final count = _visitorCount(food);
+    final available = [
+      ...pigeons.where((pigeon) => !{17, 19, 20}.contains(pigeon.number)),
+    ];
+    final selected = <Pigeon>[];
+
+    while (selected.length < count && available.isNotEmpty) {
+      final known = available
+          .where((pigeon) => collection.progressFor(pigeon.id).discovered)
+          .toList();
+      final unknownCompatible = available
+          .where(
+            (pigeon) =>
+                !collection.progressFor(pigeon.id).discovered &&
+                _matchesCurrentConditions(pigeon, food, decorationIds),
+          )
+          .toList();
+      final seekKnown = _random.nextDouble() < 0.8;
+      var pool = seekKnown ? known : unknownCompatible;
+      if (pool.isEmpty) pool = seekKnown ? unknownCompatible : known;
+      if (pool.isEmpty) {
+        pool = available
+            .where(
+              (pigeon) =>
+                  _matchesCurrentConditions(pigeon, food, decorationIds),
+            )
+            .toList();
+      }
+      if (pool.isEmpty) {
+        pool = available
+            .where((pigeon) => food.visitorIds.contains(pigeon.id))
+            .toList();
+      }
+      if (pool.isEmpty) {
+        pool = available;
+      }
+      if (pool.isEmpty) break;
+
+      final pigeon = _weightedPick(pool, (candidate) {
+        if (collection.progressFor(candidate.id).discovered) {
+          final friendshipPoints = collection
+              .progressFor(candidate.id)
+              .friendshipPoints;
+          final conditionBonus =
+              _matchesCurrentConditions(candidate, food, decorationIds) ? 4 : 1;
+          return (1 + friendshipPoints) * conditionBonus;
+        }
+        if (_matchesCurrentConditions(candidate, food, decorationIds)) {
+          return 12 + _conditionScore(candidate) * 3;
+        }
+        if (food.visitorIds.contains(candidate.id)) return 6;
+        return 1;
+      });
+      selected.add(pigeon);
+      available.remove(pigeon);
+    }
+    return selected;
+  }
+
+  int _visitorCount(Food food) {
+    final expensiveFoodBonus = (food.price / 1000) * 0.6;
+    final fourVisitorChance = (0.25 + expensiveFoodBonus).clamp(0.25, 0.85);
+    return _random.nextDouble() < fourVisitorChance ? 4 : 3;
+  }
+
+  bool _matchesCurrentConditions(
+    Pigeon pigeon,
+    Food food,
+    Set<String> decorationIds,
+  ) {
+    final foodMatches =
+        pigeon.foodIds.isEmpty || pigeon.foodIds.contains(food.id);
+    final decorationsMatch = pigeon.decorationIds.every(decorationIds.contains);
+    final hour = _now().hour;
+    final currentPeriod = hour >= 20 || hour < 6
+        ? VisitPeriod.night
+        : hour < 11
+        ? VisitPeriod.morning
+        : VisitPeriod.any;
+    final periodMatches =
+        pigeon.period == VisitPeriod.any || pigeon.period == currentPeriod;
+    return foodMatches && decorationsMatch && periodMatches;
+  }
+
+  List<Pigeon> _weightedSelection(
+    List<Pigeon> candidates,
+    int count,
+    int Function(Pigeon) weight, {
+    bool allowRepeatsWhenNeeded = false,
+  }) {
+    final available = [...candidates];
+    final result = <Pigeon>[];
+    while (result.length < count && available.isNotEmpty) {
+      final selected = _weightedPick(available, weight);
+      result.add(selected);
+      available.remove(selected);
+    }
+    while (allowRepeatsWhenNeeded && result.length < count) {
+      result.add(_weightedPick(candidates, weight));
+    }
+    return result;
+  }
+
+  Pigeon _weightedPick(List<Pigeon> candidates, int Function(Pigeon) weight) {
+    final totalWeight = candidates.fold<int>(
+      0,
+      (total, item) => total + weight(item),
+    );
+    var target = _random.nextInt(totalWeight);
+    for (final candidate in candidates) {
+      target -= weight(candidate);
+      if (target < 0) return candidate;
+    }
+    return candidates.last;
+  }
+
+  Future<FlockEncounterResult?> meetVisitors(
+    PigeonCollectionController collection,
+    List<Pigeon> visitors,
+  ) async {
+    if (!visitorReady || visitors.isEmpty) return null;
+    final encounters = <EncounterResult>[];
+    for (final pigeon in visitors) {
+      final affectionBefore = collection.progressFor(pigeon.id).affection;
+      final isNew = await collection.recordVisit(pigeon.id);
+      final affectionAfter = collection.progressFor(pigeon.id).affection;
+      final possibleTreasure = treasureForPigeon(pigeon.id);
+      final unlockedTreasure =
+          possibleTreasure != null &&
+              affectionBefore < possibleTreasure.requiredAffection &&
+              affectionAfter >= possibleTreasure.requiredAffection
+          ? possibleTreasure
+          : null;
+      final reward = _rewardFor(pigeon);
+      encounters.add(
+        EncounterResult(
+          pigeon: pigeon,
+          isNew: isNew,
+          reward: reward,
+          unlockedTreasure: unlockedTreasure,
+        ),
+      );
+    }
+    crumbs += encounters.fold<int>(0, (total, item) => total + item.reward);
+    activeFoodId = null;
+    arrivalAt = null;
+    notifyListeners();
+    await _save();
+    return FlockEncounterResult(encounters);
+  }
+
+  int _rewardFor(Pigeon pigeon) => switch (pigeon.rarity) {
+    PigeonRarity.common => 20 + _random.nextInt(31),
+    PigeonRarity.rare => 50 + _random.nextInt(51),
+    PigeonRarity.epic => 100 + _random.nextInt(151),
+    PigeonRarity.legendary => 500,
+  };
+
   Future<EncounterResult?> meetVisitor(
     PigeonCollectionController collection, {
     Set<String> decorationIds = const {},
@@ -165,12 +353,7 @@ class GameController extends ChangeNotifier {
             affectionAfter >= possibleTreasure.requiredAffection
         ? possibleTreasure
         : null;
-    final reward = switch (pigeon.rarity) {
-      PigeonRarity.common => 20 + _random.nextInt(31),
-      PigeonRarity.rare => 50 + _random.nextInt(51),
-      PigeonRarity.epic => 100 + _random.nextInt(151),
-      PigeonRarity.legendary => 500,
-    };
+    final reward = _rewardFor(pigeon);
 
     crumbs += reward;
     activeFoodId = null;

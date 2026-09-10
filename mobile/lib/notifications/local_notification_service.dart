@@ -7,6 +7,8 @@ import 'package:timezone/timezone.dart' as tz;
 import '../game/daily_challenge_controller.dart';
 import '../game/daily_gift_controller.dart';
 import '../game/game_controller.dart';
+import '../game/friendship_activity_controller.dart';
+import '../models/pigeon.dart';
 
 class LocalNotificationService {
   LocalNotificationService({this.useNativePlugin = true});
@@ -14,6 +16,7 @@ class LocalNotificationService {
   static const _arrivalId = 100;
   static const _challengeId = 200;
   static const _giftId = 300;
+  static const _friendshipActivityId = 400;
 
   final bool useNativePlugin;
   final FlutterLocalNotificationsPlugin _plugin =
@@ -102,6 +105,7 @@ class LocalNotificationService {
     required GameController game,
     required DailyChallengeController challenge,
     required DailyGiftController gift,
+    required FriendshipActivityController friendshipActivity,
   }) async {
     await initialize();
     if (!useNativePlugin || !_isSupported) return;
@@ -113,6 +117,7 @@ class LocalNotificationService {
     await _scheduleArrival(game, isFrench);
     await _scheduleChallenge(challenge, isFrench);
     await _scheduleGift(gift, isFrench);
+    await _scheduleFriendshipActivity(friendshipActivity, isFrench);
   }
 
   Future<void> cancelAll() async {
@@ -121,7 +126,35 @@ class LocalNotificationService {
       _plugin.cancel(id: _arrivalId),
       _plugin.cancel(id: _challengeId),
       _plugin.cancel(id: _giftId),
+      _plugin.cancel(id: _friendshipActivityId),
     ]);
+  }
+
+  Future<void> _scheduleFriendshipActivity(
+    FriendshipActivityController controller,
+    bool isFrench,
+  ) async {
+    await _plugin.cancel(id: _friendshipActivityId);
+    final pigeonId = controller.activePigeonId;
+    final activity = controller.activeActivity;
+    final completion = controller.completesAt;
+    if (pigeonId == null ||
+        activity == null ||
+        completion == null ||
+        !completion.isAfter(DateTime.now())) {
+      return;
+    }
+    final pigeon = pigeons.where((item) => item.id == pigeonId).firstOrNull;
+    if (pigeon == null) return;
+    await _schedule(
+      id: _friendshipActivityId,
+      date: completion,
+      title: isFrench ? 'Activité terminée !' : 'Activity complete!',
+      body: isFrench
+          ? '${activity.label(true)} avec ${pigeon.name} est terminée. Récupère tes points d’amitié !'
+          : '${activity.label(false)} with ${pigeon.name} is complete. Claim your friendship points!',
+      payload: 'pigeon_activity:$pigeonId',
+    );
   }
 
   Future<void> _scheduleArrival(GameController game, bool isFrench) async {
@@ -146,16 +179,16 @@ class LocalNotificationService {
     await _plugin.cancel(id: _challengeId);
     final now = DateTime.now();
     var reminder = DateTime(now.year, now.month, now.day, 18);
-    if (!reminder.isAfter(now) || challenge.completed) {
+    if (!reminder.isAfter(now) || challenge.allDailyGoalsClaimed) {
       reminder = reminder.add(const Duration(days: 1));
     }
     await _schedule(
       id: _challengeId,
       date: reminder,
-      title: isFrench ? 'Pigeon du jour' : 'Pigeon of the day',
+      title: isFrench ? 'Défis du jour' : 'Daily challenges',
       body: isFrench
-          ? 'Ton défi quotidien t’attend dans le parc.'
-          : 'Your daily challenge is waiting in the park.',
+          ? 'Tes missions et ton pigeon du jour t’attendent dans le parc.'
+          : 'Your missions and pigeon of the day are waiting in the park.',
       payload: 'daily_challenge',
     );
   }

@@ -9,7 +9,7 @@ class PigeonTreasure {
     required this.descriptionFr,
     required this.descriptionEn,
     required this.icon,
-    this.requiredAffection = 10,
+    this.requiredAffection = 6,
   });
 
   final String id;
