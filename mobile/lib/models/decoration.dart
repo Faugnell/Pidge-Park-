@@ -20,6 +20,7 @@ class ParkDecoration {
     required this.price,
     required this.icon,
     required this.size,
+    this.collectionRequirement,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class ParkDecoration {
   final int price;
   final IconData icon;
   final DecorationSize size;
+  final int? collectionRequirement;
 
   String name(bool isFrench) => isFrench ? nameFr : nameEn;
 }
@@ -112,5 +114,14 @@ const decorations = <ParkDecoration>[
     price: 850,
     icon: Icons.bakery_dining,
     size: DecorationSize.medium,
+  ),
+  ParkDecoration(
+    id: 'pigeondex_banner',
+    nameFr: 'Fanion du Pigeondex',
+    nameEn: 'Pigeondex pennant',
+    price: 0,
+    icon: Icons.flag_outlined,
+    size: DecorationSize.large,
+    collectionRequirement: 15,
   ),
 ];

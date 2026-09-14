@@ -1,9 +1,17 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
+import '../art/art_asset_paths.dart';
 import '../game/decoration_controller.dart';
 import '../game/game_controller.dart';
+import '../game/park_ambience.dart';
 import '../models/decoration.dart';
+import '../models/pigeon.dart';
 import '../theme/app_theme.dart';
+import 'pigeon_avatar.dart';
+import 'artwork_image.dart';
 
 enum ParkVisualLayer { background, middle, foreground }
 
@@ -17,6 +25,11 @@ const _slots = <String, _ParkSlot>{
     layer: ParkVisualLayer.background,
   ),
   'statue': (
+    alignment: Alignment(0.55, -0.48),
+    size: 72,
+    layer: ParkVisualLayer.background,
+  ),
+  'pigeondex_banner': (
     alignment: Alignment(0.55, -0.48),
     size: 72,
     layer: ParkVisualLayer.background,
@@ -49,17 +62,17 @@ const _slots = <String, _ParkSlot>{
   ),
   // Petits accessoires au premier plan.
   'radio': (
-    alignment: Alignment(0.68, 0.73),
+    alignment: Alignment(0.70, 0.12),
     size: 42,
     layer: ParkVisualLayer.foreground,
   ),
   'books': (
-    alignment: Alignment(0.68, 0.73),
+    alignment: Alignment(0.70, 0.12),
     size: 42,
     layer: ParkVisualLayer.foreground,
   ),
   'flowers': (
-    alignment: Alignment(0.68, 0.70),
+    alignment: Alignment(0.70, 0.12),
     size: 48,
     layer: ParkVisualLayer.foreground,
   ),
@@ -69,11 +82,29 @@ class ParkScene extends StatelessWidget {
   const ParkScene({
     required this.gameController,
     required this.decorationController,
+    required this.pigeons,
+    required this.knownPigeonIds,
+    this.conditionMatchPigeonIds = const {},
+    required this.onPigeonTap,
+    required this.ambience,
+    this.accessoryIcons = const {},
+    this.companionIcons = const {},
+    this.accessoryIds = const {},
+    this.companionIds = const {},
     super.key,
   });
 
   final GameController gameController;
   final DecorationController decorationController;
+  final List<Pigeon> pigeons;
+  final Set<String> knownPigeonIds;
+  final Set<String> conditionMatchPigeonIds;
+  final ValueChanged<Pigeon> onPigeonTap;
+  final ParkAmbience ambience;
+  final Map<String, IconData> accessoryIcons;
+  final Map<String, IconData> companionIcons;
+  final Map<String, String> accessoryIds;
+  final Map<String, String> companionIds;
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +113,8 @@ class ParkScene extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const _ParkGround(),
+          _ParkGround(ambience: ambience),
+          _WeatherLayer(ambience: ambience),
           _DecorationLayer(
             layer: ParkVisualLayer.background,
             equippedIds: decorationController.equippedIds,
@@ -113,10 +145,244 @@ class ParkScene extends StatelessWidget {
             ),
           // La couche pigeons reste toujours la dernière afin qu'ils passent
           // devant tous les éléments du décor.
-          if (gameController.visitorReady)
-            const Align(
-              alignment: Alignment(0.38, 0.63),
-              child: _PigeonPlaceholder(),
+          for (var index = 0; index < pigeons.length; index++)
+            Align(
+              alignment: _pigeonPositions[index % _pigeonPositions.length],
+              child: _DriftingPigeon(
+                key: ValueKey('park-pigeon-${pigeons[index].id}-$index'),
+                pigeon: pigeons[index],
+                size: index.isEven ? 68 : 61,
+                index: index,
+                isKnown: knownPigeonIds.contains(pigeons[index].id),
+                matchesClue: conditionMatchPigeonIds.contains(
+                  pigeons[index].id,
+                ),
+                accessoryIcon: accessoryIcons[pigeons[index].id],
+                companionIcon: companionIcons[pigeons[index].id],
+                accessoryId: accessoryIds[pigeons[index].id],
+                companionId: companionIds[pigeons[index].id],
+                onTap: () => onPigeonTap(pigeons[index]),
+              ),
+            ),
+          IgnorePointer(child: ColoredBox(color: ambience.overlay)),
+        ],
+      ),
+    );
+  }
+}
+
+const _pigeonPositions = <Alignment>[
+  Alignment(-0.58, 0.55),
+  Alignment(-0.08, 0.72),
+  Alignment(0.38, 0.48),
+  Alignment(0.72, 0.78),
+];
+
+class _DriftingPigeon extends StatefulWidget {
+  const _DriftingPigeon({
+    required this.pigeon,
+    required this.size,
+    required this.index,
+    required this.isKnown,
+    required this.matchesClue,
+    required this.accessoryIcon,
+    required this.companionIcon,
+    required this.accessoryId,
+    required this.companionId,
+    required this.onTap,
+    super.key,
+  });
+
+  final Pigeon pigeon;
+  final double size;
+  final int index;
+  final bool isKnown;
+  final bool matchesClue;
+  final IconData? accessoryIcon;
+  final IconData? companionIcon;
+  final String? accessoryId;
+  final String? companionId;
+  final VoidCallback onTap;
+
+  @override
+  State<_DriftingPigeon> createState() => _DriftingPigeonState();
+}
+
+class _DriftingPigeonState extends State<_DriftingPigeon> {
+  final Random _random = Random();
+  Timer? _entryTimer;
+  Timer? _movementTimer;
+  bool? _animationsDisabled;
+  bool _entered = false;
+  Offset _targetOffset = Offset.zero;
+  double _targetTilt = 0;
+  Duration _movementDuration = const Duration(milliseconds: 1600);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animationsDisabled = MediaQuery.disableAnimationsOf(context);
+    if (_animationsDisabled == animationsDisabled) return;
+    _animationsDisabled = animationsDisabled;
+    _entryTimer?.cancel();
+    _movementTimer?.cancel();
+    _entryTimer = null;
+    _movementTimer = null;
+    if (animationsDisabled) {
+      _entered = true;
+      _targetOffset = Offset.zero;
+      _targetTilt = 0;
+    } else {
+      _entered = false;
+      _entryTimer = Timer(Duration(milliseconds: 180 * widget.index), () {
+        if (!mounted || _animationsDisabled == true) return;
+        setState(() {
+          _entered = true;
+          _movementDuration = const Duration(milliseconds: 700);
+        });
+        _scheduleNextMovement(
+          delay: Duration(milliseconds: 900 + _random.nextInt(900)),
+        );
+      });
+    }
+  }
+
+  void _scheduleNextMovement({Duration? delay}) {
+    final pause = delay ?? Duration(milliseconds: 700 + _random.nextInt(2100));
+    _movementTimer = Timer(pause, () {
+      if (!mounted || _animationsDisabled == true) return;
+      final duration = Duration(milliseconds: 1100 + _random.nextInt(1500));
+      setState(() {
+        _movementDuration = duration;
+        _targetOffset = Offset(
+          -0.14 + _random.nextDouble() * 0.28,
+          -0.025 + _random.nextDouble() * 0.05,
+        );
+        _targetTilt = -0.008 + _random.nextDouble() * 0.016;
+      });
+      _scheduleNextMovement(
+        delay: duration + Duration(milliseconds: 700 + _random.nextInt(2100)),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _entryTimer?.cancel();
+    _movementTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entranceOffset = Offset(widget.index.isEven ? -2.2 : 2.2, 0.08);
+    return Semantics(
+      button: true,
+      label: widget.pigeon.name,
+      child: GestureDetector(
+        onTap: _entered ? widget.onTap : null,
+        child: AnimatedOpacity(
+          opacity: _entered ? 1 : 0,
+          duration: const Duration(milliseconds: 500),
+          child: AnimatedSlide(
+            offset: _animationsDisabled == true
+                ? Offset.zero
+                : (_entered ? _targetOffset : entranceOffset),
+            duration: _movementDuration,
+            curve: Curves.easeOutCubic,
+            child: AnimatedRotation(
+              turns: _animationsDisabled == true ? 0 : _targetTilt,
+              duration: _movementDuration,
+              curve: Curves.easeInOut,
+              child: _PigeonSceneAvatar(
+                pigeon: widget.pigeon,
+                size: widget.size,
+                isKnown: widget.isKnown,
+                matchesClue: widget.matchesClue,
+                accessoryIcon: widget.accessoryIcon,
+                companionIcon: widget.companionIcon,
+                accessoryId: widget.accessoryId,
+                companionId: widget.companionId,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PigeonSceneAvatar extends StatelessWidget {
+  const _PigeonSceneAvatar({
+    required this.pigeon,
+    required this.size,
+    required this.isKnown,
+    required this.matchesClue,
+    required this.accessoryIcon,
+    required this.companionIcon,
+    required this.accessoryId,
+    required this.companionId,
+  });
+
+  final Pigeon pigeon;
+  final double size;
+  final bool isKnown;
+  final bool matchesClue;
+  final IconData? accessoryIcon;
+  final IconData? companionIcon;
+  final String? accessoryId;
+  final String? companionId;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          PigeonAvatar(
+            pigeon: pigeon,
+            size: size,
+            accessoryIcon: accessoryIcon,
+            companionIcon: companionIcon,
+            accessoryId: accessoryId,
+            companionId: companionId,
+          ),
+          if (!isKnown)
+            Positioned(
+              top: -12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFCC5C),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF8B6729)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 10),
+                    const SizedBox(width: 2),
+                    Text(
+                      matchesClue
+                          ? (Localizations.localeOf(context).languageCode ==
+                                    'fr'
+                                ? 'Indice trouvé !'
+                                : 'Clue found!')
+                          : (Localizations.localeOf(context).languageCode ==
+                                    'fr'
+                                ? 'Nouveau !'
+                                : 'New!'),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
@@ -125,21 +391,98 @@ class ParkScene extends StatelessWidget {
 }
 
 class _ParkGround extends StatelessWidget {
-  const _ParkGround();
+  const _ParkGround({required this.ambience});
+
+  final ParkAmbience ambience;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFCFE0C6), Color(0xFFA9C99D)],
+          colors: [
+            ...ambience.skyColors,
+            const Color(0xFFCFE0C6),
+            const Color(0xFFA9C99D),
+          ],
+          stops: const [0, 0.32, 0.48, 1],
         ),
       ),
       child: CustomPaint(painter: _PathPainter()),
     );
   }
+}
+
+class _WeatherLayer extends StatelessWidget {
+  const _WeatherLayer({required this.ambience});
+  final ParkAmbience ambience;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          if (ambience.weather != ParkWeather.sunny)
+            const Positioned(
+              top: 24,
+              left: 34,
+              child: Icon(Icons.cloud, size: 54, color: Color(0xBDE9ECE8)),
+            ),
+          if (ambience.weather == ParkWeather.cloudy)
+            const Positioned(
+              top: 52,
+              right: 46,
+              child: Icon(Icons.cloud, size: 68, color: Color(0xA8DDE2DF)),
+            ),
+          if (ambience.weather == ParkWeather.sunny)
+            const Positioned(
+              top: 24,
+              left: 34,
+              child: Icon(Icons.wb_sunny, size: 48, color: Color(0xFFFFD166)),
+            ),
+          if (ambience.weather == ParkWeather.rainy)
+            Positioned.fill(child: CustomPaint(painter: _RainPainter())),
+          if (ambience.period == ParkDayPeriod.night) ...[
+            const Positioned(
+              top: 24,
+              right: 42,
+              child: Icon(
+                Icons.nightlight_round,
+                size: 42,
+                color: Color(0xFFFFE7A6),
+              ),
+            ),
+            const Positioned(
+              top: 70,
+              left: 105,
+              child: Icon(Icons.star, size: 10, color: Colors.white70),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RainPainter extends CustomPainter {
+  const _RainPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0x6680AFC8)
+      ..strokeWidth = 1.4;
+    for (var index = 0; index < 24; index++) {
+      final x = ((index * 47) % 101) / 101 * size.width;
+      final y = ((index * 83) % 97) / 97 * size.height;
+      canvas.drawLine(Offset(x, y), Offset(x - 5, y + 15), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _PathPainter extends CustomPainter {
@@ -201,42 +544,25 @@ class _DecorationPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       key: ValueKey('park-decoration-${decoration.id}'),
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: AppColors.navigationBackground.withValues(alpha: 0.82),
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFF6F805F)),
-      ),
-      child: Icon(decoration.icon, size: size * .58, color: AppColors.selected),
-    );
-  }
-}
-
-class _PigeonPlaceholder extends StatelessWidget {
-  const _PigeonPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: const ValueKey('park-pigeon-placeholder'),
-      width: 78,
-      height: 78,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8E4DA),
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFF555B57), width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 8,
-            offset: Offset(0, 5),
+      child: ArtworkImage(
+        assetPath: ArtAssetPaths.decoration(decoration.id),
+        fallback: Container(
+          decoration: BoxDecoration(
+            color: AppColors.navigationBackground.withValues(alpha: 0.82),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF6F805F)),
           ),
-        ],
+          child: Icon(
+            decoration.icon,
+            size: size * .58,
+            color: AppColors.selected,
+          ),
+        ),
       ),
-      child: const Icon(Icons.flutter_dash, size: 52, color: Color(0xFF59635F)),
     );
   }
 }

@@ -5,12 +5,14 @@ class BottomNavigation extends StatelessWidget {
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.isFrench,
+    required this.newPigeonCount,
     super.key,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final bool isFrench;
+  final int newPigeonCount;
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +25,18 @@ class BottomNavigation extends StatelessWidget {
           selectedIcon: const Icon(Icons.park),
           label: isFrench ? 'Parc' : 'Park',
         ),
-        const NavigationDestination(
-          icon: Icon(Icons.menu_book_outlined),
-          selectedIcon: Icon(Icons.menu_book),
+        NavigationDestination(
+          icon: Badge(
+            key: const ValueKey('pigeondex-new-badge'),
+            isLabelVisible: newPigeonCount > 0,
+            label: Text('$newPigeonCount'),
+            child: const Icon(Icons.menu_book_outlined),
+          ),
+          selectedIcon: Badge(
+            isLabelVisible: newPigeonCount > 0,
+            label: Text('$newPigeonCount'),
+            child: const Icon(Icons.menu_book),
+          ),
           label: 'Pigeondex',
         ),
         NavigationDestination(

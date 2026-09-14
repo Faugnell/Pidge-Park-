@@ -15,6 +15,8 @@ enum PigeonRarity {
 
 enum VisitPeriod { any, morning, night }
 
+enum PigeonWeather { any, sunny, cloudy, rainy }
+
 class Pigeon {
   const Pigeon({
     required this.id,
@@ -29,6 +31,7 @@ class Pigeon {
     this.foodIds = const [],
     this.decorationIds = const [],
     this.period = VisitPeriod.any,
+    this.weather = PigeonWeather.any,
     this.accessory,
   });
 
@@ -44,11 +47,251 @@ class Pigeon {
   final List<String> foodIds;
   final List<String> decorationIds;
   final VisitPeriod period;
+  final PigeonWeather weather;
   final IconData? accessory;
 
   String hint(bool isFrench) => isFrench ? hintFr : hintEn;
   String description(bool isFrench) => isFrench ? descriptionFr : descriptionEn;
+
+  PigeonPersonality get personality => pigeonPersonalities[id]!;
 }
+
+class PigeonPersonality {
+  const PigeonPersonality({
+    required this.temperamentFr,
+    required this.temperamentEn,
+    required this.catchphraseFr,
+    required this.catchphraseEn,
+    required this.favoriteActivity,
+  });
+
+  final String temperamentFr;
+  final String temperamentEn;
+  final String catchphraseFr;
+  final String catchphraseEn;
+  final String favoriteActivity;
+
+  String temperament(bool isFrench) => isFrench ? temperamentFr : temperamentEn;
+  String catchphrase(bool isFrench) => isFrench ? catchphraseFr : catchphraseEn;
+}
+
+const pigeonPersonalities = <String, PigeonPersonality>{
+  'gilbert': PigeonPersonality(
+    temperamentFr: 'Sociable, curieux et incorrigiblement bavard.',
+    temperamentEn: 'Sociable, curious, and hopelessly chatty.',
+    catchphraseFr: 'Je ne colporte rien, je tiens le parc informé.',
+    catchphraseEn: 'I do not gossip; I keep the park informed.',
+    favoriteActivity: 'pet',
+  ),
+  'michel': PigeonPersonality(
+    temperamentFr: 'Ponctuel, tranquille et très attaché à ses habitudes.',
+    temperamentEn: 'Punctual, peaceful, and devoted to his routines.',
+    catchphraseFr: 'Chaque miette en son temps.',
+    catchphraseEn: 'Every crumb in its own time.',
+    favoriteActivity: 'pet',
+  ),
+  'chonky': PigeonPersonality(
+    temperamentFr: 'Jovial, gourmand et toujours prêt à jouer.',
+    temperamentEn: 'Cheerful, greedy, and always ready to play.',
+    catchphraseFr: 'Je gardais cette place pour le dessert.',
+    catchphraseEn: 'I was saving that spot for dessert.',
+    favoriteActivity: 'play',
+  ),
+  'kevin': PigeonPersonality(
+    temperamentFr: 'Impulsif, enthousiaste et fier de ses mauvaises idées.',
+    temperamentEn: 'Impulsive, enthusiastic, and proud of his bad ideas.',
+    catchphraseFr: 'J’ai un plan. Il nous faut des frites.',
+    catchphraseEn: 'I have a plan. We need fries.',
+    favoriteActivity: 'play',
+  ),
+  'brenda': PigeonPersonality(
+    temperamentFr: 'Assurée, élégante et secrètement très attentionnée.',
+    temperamentEn: 'Confident, elegant, and secretly very caring.',
+    catchphraseFr: 'Ce n’est pas poser, c’est avoir de la présence.',
+    catchphraseEn: 'It is not posing; it is having presence.',
+    favoriteActivity: 'photo',
+  ),
+  'jean_pigeon': PigeonPersonality(
+    temperamentFr: 'Romantique, voyageur et nostalgique des terrasses.',
+    temperamentEn: 'Romantic, well-travelled, and nostalgic for cafés.',
+    catchphraseFr: 'Paris est toujours à une baguette d’ici.',
+    catchphraseEn: 'Paris is always one baguette away.',
+    favoriteActivity: 'photo',
+  ),
+  'croissigeon': PigeonPersonality(
+    temperamentFr: 'Matinal, délicat et optimiste avant neuf heures.',
+    temperamentEn: 'An early bird, delicate, and optimistic before nine.',
+    catchphraseFr: 'Une belle journée commence en feuilleté.',
+    catchphraseEn: 'A lovely day begins with flaky pastry.',
+    favoriteActivity: 'pet',
+  ),
+  'pigeoffrey': PigeonPersonality(
+    temperamentFr: 'Calme, contemplatif et difficile à déconcentrer.',
+    temperamentEn: 'Calm, contemplative, and very hard to distract.',
+    catchphraseFr: 'Écoute l’eau. Elle connaît le chemin.',
+    catchphraseEn: 'Listen to the water. It knows the way.',
+    favoriteActivity: 'music',
+  ),
+  'gothigeon': PigeonPersonality(
+    temperamentFr: 'Mélancolique, sensible et plus tendre qu’il ne l’admet.',
+    temperamentEn: 'Melancholy, sensitive, and softer than he admits.',
+    catchphraseFr: 'Le ciel me comprend quand il fait gris.',
+    catchphraseEn: 'The sky understands me when it is grey.',
+    favoriteActivity: 'music',
+  ),
+  'disco_pigeon': PigeonPersonality(
+    temperamentFr: 'Exubérant, généreux et incapable de rester immobile.',
+    temperamentEn: 'Exuberant, generous, and incapable of standing still.',
+    catchphraseFr: 'Même les miettes ont le rythme.',
+    catchphraseEn: 'Even crumbs have rhythm.',
+    favoriteActivity: 'music',
+  ),
+  'pigeasso': PigeonPersonality(
+    temperamentFr: 'Créatif, imprévisible et dramatiquement inspiré.',
+    temperamentEn: 'Creative, unpredictable, and dramatically inspired.',
+    catchphraseFr: 'Ne bouge plus, tu gâches ma composition.',
+    catchphraseEn: 'Do not move; you are ruining my composition.',
+    favoriteActivity: 'photo',
+  ),
+  'sherlock': PigeonPersonality(
+    temperamentFr: 'Méthodique, observateur et légèrement prétentieux.',
+    temperamentEn: 'Methodical, observant, and slightly pretentious.',
+    catchphraseFr: 'La miette manquante était un indice.',
+    catchphraseEn: 'The missing crumb was a clue.',
+    favoriteActivity: 'play',
+  ),
+  'pigeonzilla': PigeonPersonality(
+    temperamentFr: 'Impressionnant, maladroit et étonnamment timide.',
+    temperamentEn: 'Imposing, clumsy, and surprisingly shy.',
+    catchphraseFr: 'Je faisais attention… vraiment.',
+    catchphraseEn: 'I was being careful… honestly.',
+    favoriteActivity: 'pet',
+  ),
+  'pigeon_potter': PigeonPersonality(
+    temperamentFr: 'Rêveur, loyal et persuadé que la magie existe.',
+    temperamentEn: 'Dreamy, loyal, and convinced that magic exists.',
+    catchphraseFr: 'Ce n’était pas le vent. C’était magique.',
+    catchphraseEn: 'That was not the wind. It was magic.',
+    favoriteActivity: 'play',
+  ),
+  'sir_pigeonton': PigeonPersonality(
+    temperamentFr: 'Distingué, exigeant et généreux avec panache.',
+    temperamentEn: 'Distinguished, demanding, and flamboyantly generous.',
+    catchphraseFr: 'La noblesse oblige. Les graines premium aussi.',
+    catchphraseEn: 'Noblesse oblige. So do premium seeds.',
+    favoriteActivity: 'photo',
+  ),
+  'don_pigeone': PigeonPersonality(
+    temperamentFr: 'Taciturne, protecteur et très attaché à la famille.',
+    temperamentEn: 'Taciturn, protective, and devoted to the family.',
+    catchphraseFr: 'Ce parc prend soin des siens.',
+    catchphraseEn: 'This park looks after its own.',
+    favoriteActivity: 'pet',
+  ),
+  'pigeoin': PigeonPersonality(
+    temperamentFr: 'Calculateur, vif et fasciné par tout ce qui brille.',
+    temperamentEn: 'Calculating, sharp, and fascinated by shiny things.',
+    catchphraseFr: 'La plume monte. Achète des miettes.',
+    catchphraseEn: 'Feathers are up. Buy crumbs.',
+    favoriteActivity: 'play',
+  ),
+  'napoleon': PigeonPersonality(
+    temperamentFr: 'Ambitieux, autoritaire et beaucoup trop sûr de lui.',
+    temperamentEn: 'Ambitious, bossy, and far too sure of himself.',
+    catchphraseFr: 'Depuis ce banc, je vois déjà mon empire.',
+    catchphraseEn: 'From this bench, I can already see my empire.',
+    favoriteActivity: 'photo',
+  ),
+  'pigeon_exe': PigeonPersonality(
+    temperamentFr: 'Logique, étrange et sujet à des élans de spontanéité.',
+    temperamentEn: 'Logical, strange, and prone to bursts of spontaneity.',
+    catchphraseFr: 'Roucoulement.exe a cessé de fonctionner.',
+    catchphraseEn: 'Cooing.exe has stopped working.',
+    favoriteActivity: 'music',
+  ),
+  'king_pigeon': PigeonPersonality(
+    temperamentFr: 'Majestueux, théâtral et sincèrement responsable.',
+    temperamentEn: 'Majestic, theatrical, and genuinely responsible.',
+    catchphraseFr: 'Que chaque pigeon reçoive sa juste miette.',
+    catchphraseEn: 'Let every pigeon receive its rightful crumb.',
+    favoriteActivity: 'photo',
+  ),
+  'miette': PigeonPersonality(
+    temperamentFr: 'Douce, minutieuse et émerveillée par les petites choses.',
+    temperamentEn: 'Gentle, meticulous, and delighted by little things.',
+    catchphraseFr: 'Regarde, ce pétale est presque parfait.',
+    catchphraseEn: 'Look, this petal is nearly perfect.',
+    favoriteActivity: 'pet',
+  ),
+  'roger': PigeonPersonality(
+    temperamentFr:
+        'Grognon, casanier et fidèle à ceux qui respectent son calme.',
+    temperamentEn:
+        'Grumpy, home-loving, and loyal to those who respect his peace.',
+    catchphraseFr: 'De mon temps, les bancs étaient plus silencieux.',
+    catchphraseEn: 'In my day, benches were quieter.',
+    favoriteActivity: 'pet',
+  ),
+  'baguettine': PigeonPersonality(
+    temperamentFr: 'Chaleureuse, spontanée et toujours prête à partager.',
+    temperamentEn: 'Warm, spontaneous, and always ready to share.',
+    catchphraseFr: 'Prends la dernière miette, j’insiste.',
+    catchphraseEn: 'Take the last crumb, I insist.',
+    favoriteActivity: 'play',
+  ),
+  'professeur_plume': PigeonPersonality(
+    temperamentFr: 'Savant, patient et incapable de faire une réponse courte.',
+    temperamentEn: 'Learned, patient, and incapable of giving a short answer.',
+    catchphraseFr: 'Pour répondre, commençons par le commencement.',
+    catchphraseEn: 'To answer that, let us begin at the beginning.',
+    favoriteActivity: 'music',
+  ),
+  'fleur': PigeonPersonality(
+    temperamentFr:
+        'Raffinée, solaire et particulièrement exigeante sur la propreté.',
+    temperamentEn:
+        'Refined, sunny, and especially demanding about cleanliness.',
+    catchphraseFr: 'Une fleur mérite mieux que des pattes boueuses.',
+    catchphraseEn: 'A flower deserves better than muddy feet.',
+    favoriteActivity: 'photo',
+  ),
+  'radio_piaf': PigeonPersonality(
+    temperamentFr: 'Nostalgique, expressif et toujours en train de fredonner.',
+    temperamentEn: 'Nostalgic, expressive, and always humming.',
+    catchphraseFr: 'Je connais l’air. Pour les paroles, improvise.',
+    catchphraseEn: 'I know the tune. Improvise the words.',
+    favoriteActivity: 'music',
+  ),
+  'monsieur_propre': PigeonPersonality(
+    temperamentFr: 'Maniaque, serviable et fier du travail bien fait.',
+    temperamentEn: 'Fastidious, helpful, and proud of a job well done.',
+    catchphraseFr: 'Une miette propre est une bonne miette.',
+    catchphraseEn: 'A clean crumb is a good crumb.',
+    favoriteActivity: 'play',
+  ),
+  'minuit': PigeonPersonality(
+    temperamentFr: 'Discrète, mystérieuse et attentive aux confidences.',
+    temperamentEn: 'Quiet, mysterious, and attentive to secrets.',
+    catchphraseFr: 'La nuit garde mieux les secrets que moi.',
+    catchphraseEn: 'The night keeps secrets better than I do.',
+    favoriteActivity: 'music',
+  ),
+  'capitaine_plume': PigeonPersonality(
+    temperamentFr: 'Aventureux, courageux et conteur notoirement peu fiable.',
+    temperamentEn:
+        'Adventurous, brave, and a notoriously unreliable storyteller.',
+    catchphraseFr: 'La vague faisait au moins trois bancs de haut !',
+    catchphraseEn: 'The wave was at least three benches high!',
+    favoriteActivity: 'play',
+  ),
+  'celeste': PigeonPersonality(
+    temperamentFr: 'Sereine, énigmatique et étrangement réconfortante.',
+    temperamentEn: 'Serene, enigmatic, and strangely comforting.',
+    catchphraseFr: 'Le parc parle doucement quand tout le monde écoute.',
+    catchphraseEn: 'The park speaks softly when everyone listens.',
+    favoriteActivity: 'music',
+  ),
+};
 
 const pigeons = <Pigeon>[
   Pigeon(
@@ -161,6 +404,7 @@ const pigeons = <Pigeon>[
     descriptionEn: 'His feathers are as dark as his poems.',
     color: Color(0xFF44414A),
     period: VisitPeriod.night,
+    weather: PigeonWeather.cloudy,
   ),
   Pigeon(
     id: 'disco_pigeon',
@@ -367,6 +611,7 @@ const pigeons = <Pigeon>[
     descriptionEn: 'She categorically refuses to walk in mud.',
     color: Color(0xFFC89AAB),
     decorationIds: ['flowers'],
+    weather: PigeonWeather.sunny,
     accessory: Icons.local_florist,
   ),
   Pigeon(
@@ -392,6 +637,7 @@ const pigeons = <Pigeon>[
     descriptionEn: 'He inspects every crumb before leaving.',
     color: Color(0xFFE2DDD2),
     decorationIds: ['trash'],
+    weather: PigeonWeather.rainy,
   ),
   Pigeon(
     id: 'minuit',

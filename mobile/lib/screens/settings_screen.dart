@@ -8,12 +8,16 @@ class SettingsScreen extends StatelessWidget {
     required this.controller,
     required this.onResetProgress,
     required this.onNotificationsChanged,
+    required this.onReplayTutorial,
+    required this.onOpenAchievements,
     super.key,
   });
 
   final SettingsController controller;
   final Future<void> Function() onResetProgress;
   final Future<void> Function(bool) onNotificationsChanged;
+  final VoidCallback onReplayTutorial;
+  final VoidCallback onOpenAchievements;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +81,13 @@ class SettingsScreen extends StatelessWidget {
             _SettingsCard(
               children: [
                 _SettingsTile(
+                  key: const ValueKey('achievements-setting'),
+                  icon: Icons.emoji_events_outlined,
+                  title: isFrench ? 'Succès' : 'Achievements',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: onOpenAchievements,
+                ),
+                _SettingsTile(
                   icon: Icons.cloud_outlined,
                   title: isFrench ? 'Sauvegarde' : 'Save data',
                   subtitle: isFrench ? 'Sur cet appareil' : 'On this device',
@@ -88,7 +99,14 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () => _showComingSoon(context),
                 ),
                 _SettingsTile(
+                  key: const ValueKey('replay-tutorial'),
                   icon: Icons.help_outline,
+                  title: isFrench ? 'Revoir le tutoriel' : 'Replay tutorial',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: onReplayTutorial,
+                ),
+                _SettingsTile(
+                  icon: Icons.support_agent,
                   title: isFrench ? 'Aide & Support' : 'Help & Support',
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _showComingSoon(context),
