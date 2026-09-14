@@ -6,6 +6,7 @@ import 'package:pidge_park_app/collection/pigeon_collection_controller.dart';
 import 'package:pidge_park_app/game/game_controller.dart';
 import 'package:pidge_park_app/game/achievement_controller.dart';
 import 'package:pidge_park_app/game/friendship_activity_controller.dart';
+import 'package:pidge_park_app/game/park_ambience.dart';
 import 'package:pidge_park_app/game/visit_journal_controller.dart';
 import 'package:pidge_park_app/game/decoration_controller.dart';
 import 'package:pidge_park_app/game/daily_challenge_controller.dart';
@@ -15,6 +16,7 @@ import 'package:pidge_park_app/main.dart';
 import 'package:pidge_park_app/models/decoration.dart';
 import 'package:pidge_park_app/models/food.dart';
 import 'package:pidge_park_app/models/pigeon.dart';
+import 'package:pidge_park_app/models/pigeon_keepsake.dart';
 import 'package:pidge_park_app/notifications/local_notification_service.dart';
 import 'package:pidge_park_app/settings/settings_controller.dart';
 import 'package:pidge_park_app/screens/achievements_screen.dart';
@@ -124,6 +126,7 @@ void main() {
     expect(find.text('Paramètres'), findsOneWidget);
     expect(find.byKey(const ValueKey('shop-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('visit-journal-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('park-ambience-pill')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('visit-journal-button')));
     await tester.pumpAndSettle();
     expect(find.text('Journal des visites'), findsOneWidget);
@@ -159,6 +162,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('pigeon-michel')));
     await tester.pumpAndSettle();
     expect(find.text('« Une tranche classique. »'), findsOneWidget);
+    for (var index = 0; index < 4; index++) {
+      final condition = find.byKey(ValueKey('discovery-condition-$index'));
+      expect(condition, findsOneWidget);
+      expect(tester.widget<Text>(condition).data, '???');
+    }
     await tester.tap(find.text('Je vais chercher'));
     await tester.pumpAndSettle();
     await tester.drag(
@@ -170,6 +178,100 @@ void main() {
     controller.dispose();
     pigeonController.dispose();
     gameController.dispose();
+  });
+
+  testWidgets('reveals discovery conditions as the Pigeondex grows', (
+    tester,
+  ) async {
+    final controller = SettingsController(persistChanges: false);
+    final pigeonController = PigeonCollectionController(persistChanges: false);
+    final gameController = GameController(persistChanges: false);
+    await pigeonController.discover('michel');
+    await pigeonController.discover('chonky');
+    await tester.pumpWidget(
+      _testApp(controller, pigeonController, gameController),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pigeondex'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 / 30'), findsOneWidget);
+    await tester.drag(
+      find.byKey(const ValueKey('pigeondex-grid')),
+      const Offset(0, -180),
+    );
+    await tester.pumpAndSettle();
+    final kevin = find.byKey(const ValueKey('pigeon-kevin'));
+    await tester.ensureVisible(kevin);
+    await tester.pumpAndSettle();
+    await tester.tap(kevin);
+    await tester.pumpAndSettle();
+
+    final foodCondition = find.byKey(const ValueKey('discovery-condition-0'));
+    expect(foodCondition, findsOneWidget);
+    expect(tester.widget<Text>(foodCondition).data, 'Frites');
+    for (var index = 1; index < 4; index++) {
+      final condition = find.byKey(ValueKey('discovery-condition-$index'));
+      expect(condition, findsOneWidget);
+      expect(tester.widget<Text>(condition).data, '???');
+    }
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+    pigeonController.dispose();
+    gameController.dispose();
+  });
+
+  testWidgets('tracks new pigeons and claims a collection reward once', (
+    tester,
+  ) async {
+    final settings = SettingsController(persistChanges: false);
+    final collection = PigeonCollectionController(persistChanges: false);
+    final game = GameController(persistChanges: false);
+    final decorationController = DecorationController(persistChanges: false);
+    for (final id in ['michel', 'chonky', 'kevin', 'brenda']) {
+      await collection.discover(id);
+    }
+
+    await tester.pumpWidget(
+      PidgeParkApp(
+        settingsController: settings,
+        pigeonCollectionController: collection,
+        gameController: game,
+        decorationController: decorationController,
+        minimumSplashDuration: Duration.zero,
+        loadSettings: false,
+        showDailyGift: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final navigationBadge = find.byKey(const ValueKey('pigeondex-new-badge'));
+    expect(tester.widget<Badge>(navigationBadge).isLabelVisible, isTrue);
+    expect(collection.newPigeonCount, 4);
+
+    await tester.tap(find.text('Pigeondex'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('collection-goals-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('claim-collection-goal-total.5')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(game.crumbs, 1490);
+    expect(game.feathers, 37);
+    expect(collection.isCollectionGoalClaimed('total.5'), isTrue);
+    expect(
+      await collection.claimCollectionGoal(collectionGoals.first),
+      isFalse,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    settings.dispose();
+    collection.dispose();
+    game.dispose();
+    decorationController.dispose();
   });
 
   testWidgets('updates settings and switches language', (tester) async {
@@ -357,8 +459,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Trésors'));
     await tester.pumpAndSettle();
-    expect(find.text('1 / 10'), findsOneWidget);
+    expect(find.byKey(const ValueKey('souvenir-tutorial')), findsOneWidget);
+    expect(
+      find.textContaining('Chaque objet raconte un bout de l’histoire'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('J’ai compris !'));
+    await tester.pumpAndSettle();
+    expect(pigeonController.souvenirTutorialSeen, isTrue);
+    expect(find.byKey(const ValueKey('souvenir-count')), findsOneWidget);
     expect(find.text('Cuillère sale'), findsOneWidget);
+    expect(find.text('Souvenirs'), findsOneWidget);
+    await tester.tap(find.text('Équipements'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('equipment-grid')), findsOneWidget);
+    expect(find.text('Accessoires'), findsOneWidget);
+    expect(find.text('Familiers'), findsOneWidget);
 
     settingsController.dispose();
     pigeonController.dispose();
@@ -421,6 +537,12 @@ void main() {
     final visitors = gameController.selectFoodVisitors(pigeonController);
     expect(visitors.length, inInclusiveRange(3, 4));
     expect(visitors.map((pigeon) => pigeon.id).toSet().length, visitors.length);
+    expect(
+      gameController
+          .selectFoodVisitors(pigeonController)
+          .map((pigeon) => pigeon.id),
+      visitors.map((pigeon) => pigeon.id),
+    );
 
     final result = await gameController.meetVisitor(pigeonController);
     expect(result, isNotNull);
@@ -430,6 +552,38 @@ void main() {
 
     gameController.dispose();
     pigeonController.dispose();
+  });
+
+  test('first discoveries award feathers only once', () async {
+    var now = DateTime(2026, 9, 9, 12);
+    final game = GameController(
+      persistChanges: false,
+      useFastTimers: true,
+      now: () => now,
+      random: Random(7),
+    );
+    final collection = PigeonCollectionController(persistChanges: false);
+    final visitors = [
+      pigeons.firstWhere((item) => item.id == 'michel'),
+      pigeons.firstWhere((item) => item.id == 'kevin'),
+      pigeons.firstWhere((item) => item.id == 'gothigeon'),
+    ];
+
+    await game.placeFood(foods.first);
+    now = now.add(const Duration(seconds: 9));
+    final firstVisit = await game.meetVisitors(collection, visitors);
+    expect(firstVisit?.totalFeatherReward, 7);
+    expect(game.feathers, 42);
+
+    await game.placeFood(foods.first);
+    now = now.add(const Duration(seconds: 9));
+    final returnVisit = await game.meetVisitors(collection, visitors);
+    expect(returnVisit?.totalFeatherReward, 0);
+    expect(game.feathers, 42);
+    expect(collection.progressFor('michel').friendshipPoints, 2);
+
+    game.dispose();
+    collection.dispose();
   });
 
   test('friendship increases ambient appearance weight', () async {
@@ -448,6 +602,93 @@ void main() {
     expect(gilbertAppearances, greaterThan(michelAppearances));
     game.dispose();
     collection.dispose();
+  });
+
+  test('every pigeon has a complete and distinct personality', () {
+    expect(
+      pigeonPersonalities.keys.toSet(),
+      pigeons.map((item) => item.id).toSet(),
+    );
+    expect(
+      pigeonPersonalities.values
+          .map((personality) => personality.catchphraseFr)
+          .toSet()
+          .length,
+      pigeons.length,
+    );
+    for (final pigeon in pigeons) {
+      final personality = pigeon.personality;
+      expect(personality.temperamentFr, isNotEmpty);
+      expect(personality.temperamentEn, isNotEmpty);
+      expect(personality.catchphraseFr, isNotEmpty);
+      expect(personality.catchphraseEn, isNotEmpty);
+      expect(
+        FriendshipActivity.values.map((activity) => activity.name),
+        contains(personality.favoriteActivity),
+      );
+    }
+  });
+
+  test('best friends can find, equip, and duplicate their keepsake', () async {
+    final collection = PigeonCollectionController(
+      persistChanges: false,
+      random: Random(12),
+    );
+    await collection.addFriendshipPoints(
+      'gilbert',
+      PigeonProgress.levelThresholds.last,
+    );
+    expect(collection.progressFor('gilbert').isMaxFriendship, isTrue);
+
+    KeepsakeDrop? firstDrop;
+    for (var attempt = 0; attempt < 100 && firstDrop == null; attempt++) {
+      firstDrop = await collection.tryFindKeepsake('gilbert');
+    }
+    expect(firstDrop, isNotNull);
+    expect(firstDrop!.isDuplicate, isFalse);
+    expect(collection.ownsKeepsake(firstDrop.keepsake.id), isTrue);
+
+    await collection.toggleKeepsake(firstDrop.keepsake);
+    expect(collection.equippedAccessoryId('gilbert'), firstDrop.keepsake.id);
+    await collection.discover('michel');
+    await collection.toggleKeepsake(firstDrop.keepsake, forPigeonId: 'michel');
+    expect(collection.equippedAccessoryId('michel'), firstDrop.keepsake.id);
+    expect(
+      collection.pigeonsUsingKeepsake(firstDrop.keepsake.id),
+      hasLength(2),
+    );
+
+    KeepsakeDrop? duplicate;
+    for (var attempt = 0; attempt < 100 && duplicate == null; attempt++) {
+      duplicate = await collection.tryFindKeepsake('gilbert');
+    }
+    expect(duplicate, isNotNull);
+    expect(duplicate!.isDuplicate, isTrue);
+    expect(duplicate.featherReward, 1);
+    collection.dispose();
+  });
+
+  test('every pigeon owns a signature keepsake definition', () {
+    expect(
+      pigeonKeepsakes.map((item) => item.pigeonId).toSet(),
+      pigeons.map((item) => item.id).toSet(),
+    );
+    expect(
+      pigeonKeepsakes.map((item) => item.id).toSet().length,
+      pigeons.length,
+    );
+    expect(
+      keepsakeDiscoveryLinesFr.keys.toSet(),
+      pigeons.map((item) => item.id).toSet(),
+    );
+    expect(
+      keepsakeDiscoveryLinesEn.keys.toSet(),
+      pigeons.map((item) => item.id).toSet(),
+    );
+    for (final keepsake in pigeonKeepsakes) {
+      expect(keepsake.discoveryLine(true), isNotEmpty);
+      expect(keepsake.discoveryLine(false), isNotEmpty);
+    }
   });
 
   test('friendship levels require multiple visits', () async {
@@ -493,15 +734,15 @@ void main() {
     );
     final pointsBefore = collection.progressFor('gilbert').friendshipPoints;
 
-    expect(await activities.start('gilbert', FriendshipActivity.play), isTrue);
+    expect(await activities.start('gilbert', FriendshipActivity.pet), isTrue);
     expect(await activities.start('michel', FriendshipActivity.photo), isFalse);
     expect(activities.isComplete, isFalse);
     now = now.add(const Duration(seconds: 9));
     expect(activities.isComplete, isTrue);
-    expect(await activities.claim(collection), 5);
+    expect(await activities.claim(collection), 4);
     expect(
       collection.progressFor('gilbert').friendshipPoints,
-      pointsBefore + 5,
+      pointsBefore + 4,
     );
     expect(activities.completedInteractionsFor('gilbert'), 1);
     expect(activities.canInteractWith('gilbert'), isFalse);
@@ -583,6 +824,8 @@ void main() {
     var seedsWithFour = 0;
     var premiumWithFour = 0;
     for (var index = 0; index < 200; index++) {
+      seedsGame.clearPendingVisitorSelection();
+      premiumGame.clearPendingVisitorSelection();
       if (seedsGame.selectFoodVisitors(collection).length == 4) {
         seedsWithFour++;
       }
@@ -822,6 +1065,21 @@ void main() {
     expect(journal.entries.first.crumbReward, 21);
     expect(journal.entries.last.crumbReward, 2);
     journal.dispose();
+  });
+
+  test('park ambience is stable for three hours and follows local time', () {
+    final morningStart = ParkAmbience.forDate(DateTime(2026, 9, 10, 6, 5));
+    final morningEnd = ParkAmbience.forDate(DateTime(2026, 9, 10, 8, 59));
+    final daytime = ParkAmbience.forDate(DateTime(2026, 9, 10, 12));
+    final sunset = ParkAmbience.forDate(DateTime(2026, 9, 10, 18));
+    final night = ParkAmbience.forDate(DateTime(2026, 9, 10, 23));
+
+    expect(morningStart.slotKey, morningEnd.slotKey);
+    expect(morningStart.weather, morningEnd.weather);
+    expect(morningStart.period, ParkDayPeriod.morning);
+    expect(daytime.period, ParkDayPeriod.day);
+    expect(sunset.period, ParkDayPeriod.sunset);
+    expect(night.period, ParkDayPeriod.night);
   });
 
   testWidgets('achievement sorting cycles and unlocked icons are specific', (

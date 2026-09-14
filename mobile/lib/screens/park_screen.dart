@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import '../collection/pigeon_collection_controller.dart';
 import '../game/game_controller.dart';
 import '../game/friendship_activity_controller.dart';
+import '../game/park_ambience.dart';
 import '../game/visit_journal_controller.dart';
 import '../game/decoration_controller.dart';
 import '../game/daily_challenge_controller.dart';
 import '../models/food.dart';
 import '../models/pigeon.dart';
+import '../models/pigeon_keepsake.dart';
+import '../models/treasure.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pigeon_avatar.dart';
 import '../widgets/pigeon_share_card.dart';
@@ -31,6 +34,7 @@ class ParkScreen extends StatefulWidget {
     required this.onAchievementEvent,
     required this.visitJournalController,
     required this.onOpenJournal,
+    required this.onOpenPigeon,
     super.key,
   });
 
@@ -53,6 +57,7 @@ class ParkScreen extends StatefulWidget {
   onAchievementEvent;
   final VisitJournalController visitJournalController;
   final VoidCallback onOpenJournal;
+  final Future<void> Function(Pigeon pigeon) onOpenPigeon;
 
   @override
   State<ParkScreen> createState() => _ParkScreenState();
@@ -62,14 +67,29 @@ class _ParkScreenState extends State<ParkScreen> {
   Timer? _ticker;
   List<Pigeon> _ambientFlock = const [];
   List<Pigeon> _visitorFlock = const [];
+  late ParkAmbience _ambience;
+  DateTime _currentTime = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    _ambience = ParkAmbience.forDate(_currentTime);
     _refreshAmbientFlock();
     _prepareVisitorsIfReady();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      final now = DateTime.now();
+      final ambience = ParkAmbience.forDate(now);
+      if (ambience.slotKey != _ambience.slotKey ||
+          now.minute != _currentTime.minute) {
+        setState(() {
+          _currentTime = now;
+          if (ambience.slotKey != _ambience.slotKey) {
+            _ambience = ambience;
+            _refreshAmbientFlock();
+          }
+        });
+      }
       final hasActiveFood = widget.gameController.hasActiveFood;
       final hasFriendshipActivity =
           widget.friendshipActivityController.hasActiveActivity;
@@ -87,6 +107,7 @@ class _ParkScreenState extends State<ParkScreen> {
   void _refreshAmbientFlock() {
     _ambientFlock = widget.gameController.selectAmbientPigeons(
       widget.collectionController,
+      weather: _ambience.pigeonWeather,
     );
   }
 
@@ -95,6 +116,7 @@ class _ParkScreenState extends State<ParkScreen> {
     _visitorFlock = widget.gameController.selectFoodVisitors(
       widget.collectionController,
       decorationIds: widget.decorationController.equippedIds.toSet(),
+      weather: _ambience.pigeonWeather,
     );
   }
 
@@ -185,6 +207,7 @@ class _ParkScreenState extends State<ParkScreen> {
                         children: [
                           Positioned.fill(
                             child: ParkScene(
+                              ambience: _ambience,
                               gameController: game,
                               decorationController: widget.decorationController,
                               pigeons: game.hasActiveFood
@@ -199,7 +222,53 @@ class _ParkScreenState extends State<ParkScreen> {
                                       .discovered)
                                     pigeon.id,
                               },
+                              conditionMatchPigeonIds: {
+                                if (game.activeFood case final food?)
+                                  for (final pigeon in _visitorFlock)
+                                    if (!widget.collectionController
+                                            .progressFor(pigeon.id)
+                                            .discovered &&
+                                        game.matchesCurrentConditions(
+                                          pigeon,
+                                          food: food,
+                                          decorationIds: widget
+                                              .decorationController
+                                              .equippedIds
+                                              .toSet(),
+                                          weather: _ambience.pigeonWeather,
+                                        ))
+                                      pigeon.id,
+                              },
+                              accessoryIcons: {
+                                for (final pigeon in pigeons)
+                                  if (keepsakeById(
+                                        widget.collectionController
+                                            .equippedAccessoryId(pigeon.id),
+                                      )
+                                      case final item?)
+                                    pigeon.id: item.icon,
+                              },
+                              companionIcons: {
+                                for (final pigeon in pigeons)
+                                  if (keepsakeById(
+                                        widget.collectionController
+                                            .equippedCompanionId(pigeon.id),
+                                      )
+                                      case final item?)
+                                    pigeon.id: item.icon,
+                              },
+                              accessoryIds: _equippedAssetIds(companion: false),
+                              companionIds: _equippedAssetIds(companion: true),
                               onPigeonTap: _showPigeonPreview,
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: _AmbiencePill(
+                              ambience: _ambience,
+                              currentTime: _currentTime,
+                              isFrench: widget.isFrench,
                             ),
                           ),
                           Positioned(
@@ -275,6 +344,17 @@ class _ParkScreenState extends State<ParkScreen> {
     final result = List<Pigeon>.of(_ambientFlock);
     final index = result.indexWhere((pigeon) => pigeon.id == busyId);
     if (index >= 0 && result.length > 1) result.removeAt(index);
+    return result;
+  }
+
+  Map<String, String> _equippedAssetIds({required bool companion}) {
+    final result = <String, String>{};
+    for (final pigeon in pigeons) {
+      final id = companion
+          ? widget.collectionController.equippedCompanionId(pigeon.id)
+          : widget.collectionController.equippedAccessoryId(pigeon.id);
+      if (id != null) result[pigeon.id] = id;
+    }
     return result;
   }
 
@@ -366,119 +446,20 @@ class _ParkScreenState extends State<ParkScreen> {
     await widget.onGameStateChanged();
     if (!mounted) return;
 
-    await showDialog<void>(
+    final pigeonToOpen = await showDialog<Pigeon>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.splashBackground,
-        title: Text(
-          result.encounters.any((item) => item.isNew)
-              ? (widget.isFrench ? 'NOUVEAUX VISITEURS !' : 'NEW VISITORS!')
-              : (widget.isFrench ? 'LA BANDE EST LÀ !' : 'THE FLOCK IS HERE!'),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final encounter in result.encounters)
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      PigeonAvatar(pigeon: encounter.pigeon, size: 72),
-                      Text(
-                        encounter.pigeon.name,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      if (encounter.isNew)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.isFrench ? 'Nouveau !' : 'New!',
-                              style: const TextStyle(color: AppColors.selected),
-                            ),
-                            IconButton(
-                              key: ValueKey(
-                                'share-new-pigeon-${encounter.pigeon.id}',
-                              ),
-                              tooltip: widget.isFrench ? 'Partager' : 'Share',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () => showPigeonShareCard(
-                                context,
-                                pigeon: encounter.pigeon,
-                                progress: widget.collectionController
-                                    .progressFor(encounter.pigeon.id),
-                                isFrench: widget.isFrench,
-                                isNew: true,
-                              ),
-                              icon: const Icon(Icons.ios_share, size: 18),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '+${result.totalReward} ${widget.isFrench ? 'miettes' : 'crumbs'}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            if (result.encounters.any(
-              (item) => item.unlockedTreasure != null,
-            )) ...[
-              const SizedBox(height: 14),
-              const Divider(),
-              const SizedBox(height: 8),
-              Icon(
-                result.encounters
-                    .firstWhere((item) => item.unlockedTreasure != null)
-                    .unlockedTreasure!
-                    .icon,
-                size: 34,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                widget.isFrench ? 'NOUVEAU TRÉSOR !' : 'NEW TREASURE!',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              Text(
-                result.encounters
-                    .firstWhere((item) => item.unlockedTreasure != null)
-                    .unlockedTreasure!
-                    .name(widget.isFrench),
-              ),
-            ],
-            if (dailyReward != null) ...[
-              const SizedBox(height: 14),
-              const Divider(),
-              const SizedBox(height: 8),
-              Text(
-                widget.isFrench
-                    ? 'DÉFI DU JOUR RÉUSSI !'
-                    : 'DAILY CHALLENGE COMPLETE!',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              Text('+${dailyReward.crumbs} 🪙'),
-              if (dailyReward.feathers > 0) Text('+${dailyReward.feathers} ✨'),
-            ],
-          ],
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(widget.isFrench ? 'Super !' : 'Great!'),
-          ),
-        ],
+      builder: (context) => _VisitorRevealDialog(
+        result: result,
+        collectionController: widget.collectionController,
+        dailyReward: dailyReward,
+        isFrench: widget.isFrench,
       ),
     );
+    if (pigeonToOpen != null && mounted) {
+      await widget.collectionController.markPigeonSeen(pigeonToOpen.id);
+      await widget.onOpenPigeon(pigeonToOpen);
+    }
   }
 
   Future<void> _showPigeonPreview(Pigeon pigeon) async {
@@ -526,6 +507,357 @@ class _ParkScreenState extends State<ParkScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(widget.isFrench ? 'Fermer' : 'Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VisitorRevealDialog extends StatefulWidget {
+  const _VisitorRevealDialog({
+    required this.result,
+    required this.collectionController,
+    required this.dailyReward,
+    required this.isFrench,
+  });
+
+  final FlockEncounterResult result;
+  final PigeonCollectionController collectionController;
+  final DailyReward? dailyReward;
+  final bool isFrench;
+
+  @override
+  State<_VisitorRevealDialog> createState() => _VisitorRevealDialogState();
+}
+
+class _VisitorRevealDialogState extends State<_VisitorRevealDialog> {
+  late final Set<String> _revealedIds = {
+    for (final encounter in widget.result.encounters)
+      if (!encounter.isNew) encounter.pigeon.id,
+  };
+
+  bool get _allRevealed => widget.result.encounters.every(
+    (encounter) => _revealedIds.contains(encounter.pigeon.id),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final treasure = widget.result.encounters
+        .map((item) => item.unlockedTreasure)
+        .whereType<PigeonTreasure>()
+        .firstOrNull;
+    return AlertDialog(
+      key: const ValueKey('visitor-reveal-dialog'),
+      backgroundColor: AppColors.splashBackground,
+      title: Text(
+        widget.result.encounters.any((item) => item.isNew)
+            ? (widget.isFrench ? 'QUI EST VENU ?' : 'WHO CAME TO VISIT?')
+            : (widget.isFrench ? 'LA BANDE EST LÀ !' : 'THE FLOCK IS HERE!'),
+        textAlign: TextAlign.center,
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!_allRevealed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  widget.isFrench
+                      ? 'Touche chaque silhouette pour découvrir le visiteur.'
+                      : 'Tap each silhouette to discover the visitor.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 10,
+              children: [
+                for (final encounter in widget.result.encounters)
+                  _VisitorRevealCard(
+                    encounter: encounter,
+                    revealed: _revealedIds.contains(encounter.pigeon.id),
+                    canOpen: _allRevealed,
+                    reduceMotion: reduceMotion,
+                    isFrench: widget.isFrench,
+                    onReveal: () =>
+                        setState(() => _revealedIds.add(encounter.pigeon.id)),
+                    onOpen: () => Navigator.pop(context, encounter.pigeon),
+                    onShare: () => showPigeonShareCard(
+                      context,
+                      pigeon: encounter.pigeon,
+                      progress: widget.collectionController.progressFor(
+                        encounter.pigeon.id,
+                      ),
+                      isFrench: widget.isFrench,
+                      isNew: encounter.isNew,
+                      accessoryIcon: pigeonKeepsakes
+                          .where(
+                            (item) =>
+                                item.id ==
+                                widget.collectionController.equippedAccessoryId(
+                                  encounter.pigeon.id,
+                                ),
+                          )
+                          .firstOrNull
+                          ?.icon,
+                      companionIcon: pigeonKeepsakes
+                          .where(
+                            (item) =>
+                                item.id ==
+                                widget.collectionController.equippedCompanionId(
+                                  encounter.pigeon.id,
+                                ),
+                          )
+                          .firstOrNull
+                          ?.icon,
+                      accessoryId: widget.collectionController
+                          .equippedAccessoryId(encounter.pigeon.id),
+                      companionId: widget.collectionController
+                          .equippedCompanionId(encounter.pigeon.id),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '+${widget.result.totalReward} ${widget.isFrench ? 'miettes' : 'crumbs'}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            if (widget.result.totalFeatherReward > 0)
+              Text(
+                '+${widget.result.totalFeatherReward} ${widget.isFrench ? 'plume${widget.result.totalFeatherReward > 1 ? 's' : ''} de découverte' : 'discovery feather${widget.result.totalFeatherReward > 1 ? 's' : ''}'}',
+                key: const ValueKey('discovery-feather-reward'),
+                style: const TextStyle(
+                  color: AppColors.selected,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            for (final drop
+                in widget.result.encounters
+                    .map((item) => item.keepsakeDrop)
+                    .whereType<KeepsakeDrop>()) ...[
+              const SizedBox(height: 10),
+              Container(
+                key: ValueKey('keepsake-drop-${drop.keepsake.id}'),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE5A3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(drop.keepsake.icon, color: AppColors.selected),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        drop.isDuplicate
+                            ? (widget.isFrench
+                                  ? '${drop.keepsake.name(true)} déjà trouvé · +${drop.featherReward} plumes'
+                                  : '${drop.keepsake.name(false)} duplicate · +${drop.featherReward} feathers')
+                            : (widget.isFrench
+                                  ? 'Objet rapporté : ${drop.keepsake.name(true)} !\n« ${drop.keepsake.discoveryLine(true)} »'
+                                  : 'Keepsake found: ${drop.keepsake.name(false)}!\n“${drop.keepsake.discoveryLine(false)}”'),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (treasure != null) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              Icon(treasure.icon, size: 32),
+              Text(
+                widget.isFrench ? 'NOUVEAU TRÉSOR !' : 'NEW TREASURE!',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text(treasure.name(widget.isFrench)),
+            ],
+            if (widget.dailyReward case final reward?) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              Text(
+                widget.isFrench
+                    ? 'DÉFI DU JOUR RÉUSSI !'
+                    : 'DAILY CHALLENGE COMPLETE!',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text('+${reward.crumbs} 🪙'),
+              if (reward.feathers > 0) Text('+${reward.feathers} ✨'),
+            ],
+          ],
+        ),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        FilledButton(
+          key: const ValueKey('close-visitor-reveal'),
+          onPressed: _allRevealed ? () => Navigator.pop(context) : null,
+          child: Text(widget.isFrench ? 'Continuer' : 'Continue'),
+        ),
+      ],
+    );
+  }
+}
+
+class _VisitorRevealCard extends StatelessWidget {
+  const _VisitorRevealCard({
+    required this.encounter,
+    required this.revealed,
+    required this.canOpen,
+    required this.reduceMotion,
+    required this.isFrench,
+    required this.onReveal,
+    required this.onOpen,
+    required this.onShare,
+  });
+
+  final EncounterResult encounter;
+  final bool revealed;
+  final bool canOpen;
+  final bool reduceMotion;
+  final bool isFrench;
+  final VoidCallback onReveal;
+  final VoidCallback onOpen;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 112,
+      child: Material(
+        color: AppColors.navigationBackground,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: ValueKey('reveal-visitor-${encounter.pigeon.id}'),
+          onTap: revealed ? (canOpen ? onOpen : null) : onReveal,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: AnimatedSwitcher(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 450),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              ),
+              child: revealed
+                  ? Column(
+                      key: const ValueKey('revealed'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PigeonAvatar(pigeon: encounter.pigeon, size: 64),
+                        Text(
+                          encounter.pigeon.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          encounter.isNew
+                              ? '+${encounter.featherReward} ✨'
+                              : (isFrench ? '+1 amitié' : '+1 friendship'),
+                          style: const TextStyle(
+                            color: AppColors.selected,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (encounter.isNew)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                canOpen
+                                    ? (isFrench ? 'Fiche' : 'Profile')
+                                    : (isFrench ? 'Nouveau !' : 'New!'),
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                              IconButton(
+                                key: ValueKey(
+                                  'share-new-pigeon-${encounter.pigeon.id}',
+                                ),
+                                tooltip: isFrench ? 'Partager' : 'Share',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: onShare,
+                                icon: const Icon(Icons.ios_share, size: 17),
+                              ),
+                            ],
+                          )
+                        else
+                          Text(
+                            canOpen
+                                ? (isFrench ? 'Voir la fiche' : 'View profile')
+                                : (isFrench ? 'Déjà connu' : 'Already known'),
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                      ],
+                    )
+                  : Column(
+                      key: const ValueKey('hidden'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PigeonAvatar(
+                          pigeon: encounter.pigeon,
+                          locked: true,
+                          size: 64,
+                        ),
+                        const Text(
+                          '???',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          isFrench ? 'Toucher' : 'Tap',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AmbiencePill extends StatelessWidget {
+  const _AmbiencePill({
+    required this.ambience,
+    required this.currentTime,
+    required this.isFrench,
+  });
+
+  final ParkAmbience ambience;
+  final DateTime currentTime;
+  final bool isFrench;
+
+  @override
+  Widget build(BuildContext context) {
+    final time =
+        '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}';
+    return Container(
+      key: const ValueKey('park-ambience-pill'),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.navigationBackground.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFCDBE9D)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ambience.icon, size: 16, color: AppColors.selected),
+          const SizedBox(width: 5),
+          Text(
+            '$time · ${ambience.weatherLabel(isFrench)}',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
           ),
         ],
       ),

@@ -227,6 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onAchievementEvent: _updateAchievements,
         visitJournalController: widget.visitJournalController,
         onOpenJournal: _openVisitJournal,
+        onOpenPigeon: _openPigeonDetail,
         friendshipActivityController: widget.friendshipActivityController,
         onOpenActivityPigeon: _openActiveActivityPigeon,
         onOpenDecorations: () {
@@ -250,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
         gameController: widget.gameController,
         activityController: widget.friendshipActivityController,
         dailyChallengeController: widget.dailyChallengeController,
+        decorationController: widget.decorationController,
         isFrench: isFrench,
         onActivityChanged: widget._synchronizeNotifications,
         onProgressChanged: _updateAchievements,
@@ -257,6 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
       TreasuresScreen(
         collectionController: widget.pigeonCollectionController,
         isFrench: isFrench,
+        onOpenPigeon: _openPigeon,
       ),
       SettingsScreen(
         controller: widget.settingsController,
@@ -299,12 +302,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: pages),
-      bottomNavigationBar: BottomNavigation(
-        selectedIndex: _selectedIndex,
-        isFrench: isFrench,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
+      bottomNavigationBar: AnimatedBuilder(
+        animation: widget.pigeonCollectionController,
+        builder: (context, _) => BottomNavigation(
+          selectedIndex: _selectedIndex,
+          isFrench: isFrench,
+          newPigeonCount: widget.pigeonCollectionController.newPigeonCount,
+          onDestinationSelected: (index) {
+            setState(() => _selectedIndex = index);
+          },
+        ),
       ),
     );
   }
@@ -401,6 +408,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openPigeon(Pigeon pigeon) {
+    unawaited(_openPigeonDetail(pigeon));
+  }
+
+  Future<void> _openPigeonDetail(Pigeon pigeon) async {
+    await widget.pigeonCollectionController.markPigeonSeen(pigeon.id);
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PigeonDetailScreen(

@@ -15,6 +15,10 @@ Future<void> showPigeonShareCard(
   required PigeonProgress progress,
   required bool isFrench,
   bool isNew = false,
+  IconData? accessoryIcon,
+  IconData? companionIcon,
+  String? accessoryId,
+  String? companionId,
 }) {
   return showDialog<void>(
     context: context,
@@ -23,6 +27,10 @@ Future<void> showPigeonShareCard(
       progress: progress,
       isFrench: isFrench,
       isNew: isNew,
+      accessoryIcon: accessoryIcon,
+      companionIcon: companionIcon,
+      accessoryId: accessoryId,
+      companionId: companionId,
     ),
   );
 }
@@ -33,12 +41,20 @@ class _PigeonShareDialog extends StatefulWidget {
     required this.progress,
     required this.isFrench,
     required this.isNew,
+    required this.accessoryIcon,
+    required this.companionIcon,
+    required this.accessoryId,
+    required this.companionId,
   });
 
   final Pigeon pigeon;
   final PigeonProgress progress;
   final bool isFrench;
   final bool isNew;
+  final IconData? accessoryIcon;
+  final IconData? companionIcon;
+  final String? accessoryId;
+  final String? companionId;
 
   @override
   State<_PigeonShareDialog> createState() => _PigeonShareDialogState();
@@ -62,6 +78,10 @@ class _PigeonShareDialogState extends State<_PigeonShareDialog> {
             progress: widget.progress,
             isFrench: widget.isFrench,
             isNew: widget.isNew,
+            accessoryIcon: widget.accessoryIcon,
+            companionIcon: widget.companionIcon,
+            accessoryId: widget.accessoryId,
+            companionId: widget.companionId,
           ),
         ),
       ),
@@ -140,12 +160,20 @@ class _ShareCard extends StatelessWidget {
     required this.progress,
     required this.isFrench,
     required this.isNew,
+    required this.accessoryIcon,
+    required this.companionIcon,
+    required this.accessoryId,
+    required this.companionId,
   });
 
   final Pigeon pigeon;
   final PigeonProgress progress;
   final bool isFrench;
   final bool isNew;
+  final IconData? accessoryIcon;
+  final IconData? companionIcon;
+  final String? accessoryId;
+  final String? companionId;
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +206,14 @@ class _ShareCard extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              PigeonAvatar(pigeon: pigeon, size: 170),
+              PigeonAvatar(
+                pigeon: pigeon,
+                size: 170,
+                accessoryIcon: accessoryIcon,
+                companionIcon: companionIcon,
+                accessoryId: accessoryId,
+                companionId: companionId,
+              ),
               const Positioned(
                 left: -16,
                 top: 12,

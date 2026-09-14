@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../art/art_asset_paths.dart';
 import '../game/decoration_controller.dart';
 import '../game/game_controller.dart';
 import '../models/decoration.dart';
 import '../theme/app_theme.dart';
+import '../widgets/artwork_image.dart';
 
 class DecorationsScreen extends StatelessWidget {
   const DecorationsScreen({
@@ -115,6 +117,18 @@ class DecorationsScreen extends StatelessWidget {
 
   Future<void> _select(BuildContext context, ParkDecoration decoration) async {
     if (!controller.isOwned(decoration)) {
+      if (decoration.collectionRequirement case final requirement?) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isFrench
+                  ? 'Découvre $requirement pigeons pour débloquer cette récompense.'
+                  : 'Discover $requirement pigeons to unlock this reward.',
+            ),
+          ),
+        );
+        return;
+      }
       final bought = await controller.buy(decoration, gameController);
       if (!bought && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -265,7 +279,17 @@ class _DecorationCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(decoration.icon, size: 42, color: AppColors.selected),
+              SizedBox.square(
+                dimension: 48,
+                child: ArtworkImage(
+                  assetPath: ArtAssetPaths.decoration(decoration.id),
+                  fallback: Icon(
+                    decoration.icon,
+                    size: 42,
+                    color: AppColors.selected,
+                  ),
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 decoration.name(isFrench),
@@ -280,6 +304,8 @@ class _DecorationCard extends StatelessWidget {
                     ? (isFrench ? 'ÉQUIPÉ' : 'EQUIPPED')
                     : owned
                     ? (isFrench ? 'Possédé' : 'Owned')
+                    : decoration.collectionRequirement != null
+                    ? '${decoration.collectionRequirement} pigeons'
                     : '🪙 ${decoration.price}',
                 style: const TextStyle(
                   fontSize: 10,

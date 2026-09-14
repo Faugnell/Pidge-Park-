@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "pigeonCanvas": { "width": 1024, "height": 1024 },
+  "anchors": {
+    "head": { "x": 0.5, "y": 0.2 },
+    "face": { "x": 0.5, "y": 0.34 },
+    "neck": { "x": 0.5, "y": 0.48 },
+    "companion": { "x": 0.82, "y": 0.78 }
+  },
+  "formats": ["png"],
+  "colorSpace": "sRGB"
+}

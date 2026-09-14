@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import '../collection/pigeon_collection_controller.dart';
 import '../game/friendship_activity_controller.dart';
 import '../game/game_controller.dart';
+import '../game/decoration_controller.dart';
 import '../game/daily_challenge_controller.dart';
 import '../models/food.dart';
+import '../models/decoration.dart';
 import '../models/pigeon.dart';
+import '../models/pigeon_keepsake.dart';
 import '../models/treasure.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pigeon_avatar.dart';
@@ -21,6 +24,7 @@ class PigeondexScreen extends StatefulWidget {
     required this.isFrench,
     required this.onActivityChanged,
     required this.dailyChallengeController,
+    required this.decorationController,
     required this.onProgressChanged,
     super.key,
   });
@@ -31,6 +35,7 @@ class PigeondexScreen extends StatefulWidget {
   final bool isFrench;
   final Future<void> Function() onActivityChanged;
   final DailyChallengeController dailyChallengeController;
+  final DecorationController decorationController;
   final Future<void> Function({
     String? foodId,
     bool flockWelcomed,
@@ -84,6 +89,16 @@ class _PigeondexScreenState extends State<PigeondexScreen> {
               '$discoveredCount / ${pigeons.length}',
               style: Theme.of(context).textTheme.labelLarge,
             ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _CollectionProgressCard(
+                controller: widget.controller,
+                gameController: widget.gameController,
+                decorationController: widget.decorationController,
+                isFrench: widget.isFrench,
+              ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               height: 38,
@@ -128,12 +143,37 @@ class _PigeondexScreenState extends State<PigeondexScreen> {
                     isFrench: widget.isFrench,
                     isBusy:
                         widget.activityController.activePigeonId == pigeon.id,
-                    onTap: () {
+                    isNew: widget.controller.newPigeonIds.contains(pigeon.id),
+                    accessoryIcon: pigeonKeepsakes
+                        .where(
+                          (item) =>
+                              item.id ==
+                              widget.controller.equippedAccessoryId(pigeon.id),
+                        )
+                        .firstOrNull
+                        ?.icon,
+                    companionIcon: pigeonKeepsakes
+                        .where(
+                          (item) =>
+                              item.id ==
+                              widget.controller.equippedCompanionId(pigeon.id),
+                        )
+                        .firstOrNull
+                        ?.icon,
+                    accessoryId: widget.controller.equippedAccessoryId(
+                      pigeon.id,
+                    ),
+                    companionId: widget.controller.equippedCompanionId(
+                      pigeon.id,
+                    ),
+                    onTap: () async {
                       if (!progress.discovered) {
                         _showHint(context, pigeon);
                         return;
                       }
-                      Navigator.of(context).push(
+                      await widget.controller.markPigeonSeen(pigeon.id);
+                      if (!context.mounted) return;
+                      await Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => PigeonDetailScreen(
                             pigeon: pigeon,
@@ -160,15 +200,48 @@ class _PigeondexScreenState extends State<PigeondexScreen> {
   }
 
   void _showHint(BuildContext context, Pigeon pigeon) {
+    final discoveredCount = pigeons
+        .where((item) => widget.controller.progressFor(item.id).discovered)
+        .length;
+    final revealedConditions = discoveredCount >= 12
+        ? 4
+        : discoveredCount >= 8
+        ? 3
+        : discoveredCount >= 5
+        ? 2
+        : discoveredCount >= 3
+        ? 1
+        : 0;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.splashBackground,
         icon: const Icon(Icons.help_outline, size: 38),
         title: Text('#${pigeon.number.toString().padLeft(3, '0')} — ???'),
-        content: Text(
-          '« ${pigeon.hint(widget.isFrench)} »',
-          textAlign: TextAlign.center,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '« ${pigeon.hint(widget.isFrench)} »',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            _DiscoveryConditions(
+              pigeon: pigeon,
+              isFrench: widget.isFrench,
+              revealedCount: revealedConditions,
+            ),
+            if (revealedConditions < 4) ...[
+              const SizedBox(height: 10),
+              Text(
+                widget.isFrench
+                    ? 'Découvre davantage de pigeons pour obtenir de nouveaux indices.'
+                    : 'Discover more pigeons to reveal new clues.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -181,6 +254,339 @@ class _PigeondexScreenState extends State<PigeondexScreen> {
       ),
     );
   }
+}
+
+class _CollectionProgressCard extends StatelessWidget {
+  const _CollectionProgressCard({
+    required this.controller,
+    required this.gameController,
+    required this.decorationController,
+    required this.isFrench,
+  });
+
+  final PigeonCollectionController controller;
+  final GameController gameController;
+  final DecorationController decorationController;
+  final bool isFrench;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = controller.discoveredCount / pigeons.length;
+    final claimable = collectionGoals
+        .where(controller.canClaimCollectionGoal)
+        .length;
+    return Material(
+      color: AppColors.navigationBackground,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        key: const ValueKey('collection-goals-button'),
+        borderRadius: BorderRadius.circular(15),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => _CollectionGoalsDialog(
+            controller: controller,
+            gameController: gameController,
+            decorationController: decorationController,
+            isFrench: isFrench,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.emoji_events_outlined,
+                color: AppColors.selected,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isFrench ? 'Objectifs de collection' : 'Collection goals',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 5),
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 7,
+                      borderRadius: BorderRadius.circular(8),
+                      backgroundColor: const Color(0xFFE5DCC8),
+                      color: AppColors.selected,
+                    ),
+                  ],
+                ),
+              ),
+              if (claimable > 0) ...[
+                const SizedBox(width: 8),
+                Badge(
+                  key: const ValueKey('claimable-collection-goals'),
+                  label: Text('$claimable'),
+                  child: const Icon(Icons.card_giftcard),
+                ),
+              ] else
+                const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CollectionGoalsDialog extends StatefulWidget {
+  const _CollectionGoalsDialog({
+    required this.controller,
+    required this.gameController,
+    required this.decorationController,
+    required this.isFrench,
+  });
+
+  final PigeonCollectionController controller;
+  final GameController gameController;
+  final DecorationController decorationController;
+  final bool isFrench;
+
+  @override
+  State<_CollectionGoalsDialog> createState() => _CollectionGoalsDialogState();
+}
+
+class _CollectionGoalsDialogState extends State<_CollectionGoalsDialog> {
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.splashBackground,
+      title: Text(
+        widget.isFrench ? 'Objectifs du Pigeondex' : 'Pigeondex goals',
+        textAlign: TextAlign.center,
+      ),
+      content: SizedBox(
+        width: 380,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Text(
+              widget.isFrench ? 'Collection générale' : 'Main collection',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            for (final goal in collectionGoals.where(
+              (item) => item.rarity == null,
+            ))
+              _goalTile(goal),
+            const SizedBox(height: 12),
+            Text(
+              widget.isFrench ? 'Collections par rareté' : 'Rarity collections',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            for (final goal in collectionGoals.where(
+              (item) => item.rarity != null,
+            ))
+              _goalTile(goal),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.isFrench ? 'Fermer' : 'Close'),
+        ),
+      ],
+    );
+  }
+
+  Widget _goalTile(CollectionGoal goal) {
+    final current = widget.controller.progressForGoal(goal);
+    final target = widget.controller.targetForGoal(goal);
+    final claimed = widget.controller.isCollectionGoalClaimed(goal.id);
+    final canClaim = widget.controller.canClaimCollectionGoal(goal);
+    final label = goal.rarity == null
+        ? (widget.isFrench
+              ? '$target pigeons découverts'
+              : '$target pigeons discovered')
+        : '${goal.rarity!.label(widget.isFrench)} · $target/$target';
+    return Card(
+      margin: const EdgeInsets.only(bottom: 7),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Icon(
+              claimed ? Icons.check_circle : Icons.lock_open_outlined,
+              color: claimed ? const Color(0xFF4F9D58) : AppColors.selected,
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '$current/$target · ${goal.crumbs} 🪙 · ${goal.feathers} ✨'
+                    '${goal.decorationId == null ? '' : ' · 🎏'}'
+                    '${goal.completionReward ? (widget.isFrench ? ' · Thème à venir' : ' · Theme coming soon') : ''}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            if (claimed)
+              Text(widget.isFrench ? 'Reçu' : 'Claimed')
+            else
+              FilledButton(
+                key: ValueKey('claim-collection-goal-${goal.id}'),
+                onPressed: canClaim ? () => _claim(goal) : null,
+                child: Text(widget.isFrench ? 'Prendre' : 'Claim'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _claim(CollectionGoal goal) async {
+    if (!await widget.controller.claimCollectionGoal(goal)) return;
+    await widget.gameController.addReward(
+      crumbs: goal.crumbs,
+      feathers: goal.feathers,
+    );
+    if (goal.decorationId case final decorationId?) {
+      await widget.decorationController.grant(decorationId);
+    }
+    if (!mounted) return;
+    setState(() {});
+    if (goal.completionReward) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.auto_awesome, size: 52),
+          title: const Text('PIGEONDEX 100 % !'),
+          content: Text(
+            widget.isFrench
+                ? 'Tous les pigeons ont été découverts. Un thème commémoratif arrivera prochainement !'
+                : 'Every pigeon has been discovered. A commemorative theme is coming soon!',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(widget.isFrench ? 'Incroyable !' : 'Amazing!'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+}
+
+class _DiscoveryConditions extends StatelessWidget {
+  const _DiscoveryConditions({
+    required this.pigeon,
+    required this.isFrench,
+    required this.revealedCount,
+  });
+
+  final Pigeon pigeon;
+  final bool isFrench;
+  final int revealedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final conditions = <({IconData icon, String label, String value})>[
+      (
+        icon: Icons.restaurant_outlined,
+        label: isFrench ? 'Nourriture' : 'Food',
+        value: _foodCondition,
+      ),
+      (
+        icon: Icons.chair_alt_outlined,
+        label: isFrench ? 'Décoration' : 'Decoration',
+        value: _decorationCondition,
+      ),
+      (
+        icon: Icons.schedule,
+        label: isFrench ? 'Moment' : 'Time',
+        value: _periodCondition,
+      ),
+      (
+        icon: Icons.cloud_outlined,
+        label: isFrench ? 'Météo' : 'Weather',
+        value: _weatherCondition,
+      ),
+    ];
+    return Column(
+      children: [
+        for (var index = 0; index < conditions.length; index++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  conditions[index].icon,
+                  size: 18,
+                  color: AppColors.selected,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${conditions[index].label} : ',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Expanded(
+                  child: Text(
+                    key: ValueKey('discovery-condition-$index'),
+                    index < revealedCount ? conditions[index].value : '???',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  String get _foodCondition {
+    if (pigeon.foodIds.isEmpty) {
+      return isFrench ? 'Peu importe' : 'Any food';
+    }
+    return pigeon.foodIds
+        .map((id) => foodById(id)?.name(isFrench) ?? id)
+        .join(', ');
+  }
+
+  String get _decorationCondition {
+    if (pigeon.decorationIds.isEmpty) {
+      return isFrench ? 'Aucune en particulier' : 'Nothing special';
+    }
+    return pigeon.decorationIds
+        .map(
+          (id) =>
+              decorations
+                  .where((item) => item.id == id)
+                  .map((item) => item.name(isFrench))
+                  .firstOrNull ??
+              id,
+        )
+        .join(', ');
+  }
+
+  String get _periodCondition => switch (pigeon.period) {
+    VisitPeriod.any => isFrench ? 'Toute la journée' : 'Any time',
+    VisitPeriod.morning => isFrench ? 'Le matin' : 'Morning',
+    VisitPeriod.night => isFrench ? 'La nuit' : 'Night',
+  };
+
+  String get _weatherCondition => switch (pigeon.weather) {
+    PigeonWeather.any => isFrench ? 'Peu importe' : 'Any weather',
+    PigeonWeather.sunny => isFrench ? 'Soleil' : 'Sunny',
+    PigeonWeather.cloudy => isFrench ? 'Nuages' : 'Cloudy',
+    PigeonWeather.rainy => isFrench ? 'Petite pluie' : 'Light rain',
+  };
 }
 
 class _FilterChip extends StatelessWidget {
@@ -219,6 +625,11 @@ class _PigeonCard extends StatelessWidget {
     required this.isFrench,
     required this.onTap,
     required this.isBusy,
+    required this.isNew,
+    required this.accessoryIcon,
+    required this.companionIcon,
+    required this.accessoryId,
+    required this.companionId,
   });
 
   final Pigeon pigeon;
@@ -226,6 +637,11 @@ class _PigeonCard extends StatelessWidget {
   final bool isFrench;
   final VoidCallback? onTap;
   final bool isBusy;
+  final bool isNew;
+  final IconData? accessoryIcon;
+  final IconData? companionIcon;
+  final String? accessoryId;
+  final String? companionId;
 
   @override
   Widget build(BuildContext context) {
@@ -261,6 +677,15 @@ class _PigeonCard extends StatelessWidget {
                       color: AppColors.selected,
                     ),
                   ],
+                  if (isNew) ...[
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.fiber_new,
+                      key: ValueKey('new-pigeon-indicator'),
+                      size: 16,
+                      color: AppColors.selected,
+                    ),
+                  ],
                 ],
               ),
               const Spacer(),
@@ -268,6 +693,10 @@ class _PigeonCard extends StatelessWidget {
                 pigeon: pigeon,
                 locked: !progress.discovered,
                 size: 64,
+                accessoryIcon: accessoryIcon,
+                companionIcon: companionIcon,
+                accessoryId: accessoryId,
+                companionId: companionId,
               ),
               const Spacer(),
               Text(
@@ -351,6 +780,10 @@ class PigeonDetailScreen extends StatelessWidget {
                   pigeon: pigeon,
                   progress: progress,
                   isFrench: isFrench,
+                  accessoryIcon: _equippedAccessory?.icon,
+                  companionIcon: _equippedCompanion?.icon,
+                  accessoryId: _equippedAccessory?.id,
+                  companionId: _equippedCompanion?.id,
                 ),
                 icon: const Icon(Icons.ios_share),
               ),
@@ -362,7 +795,16 @@ class PigeonDetailScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
               children: [
                 const SizedBox(height: 12),
-                Center(child: PigeonAvatar(pigeon: pigeon, size: 190)),
+                Center(
+                  child: PigeonAvatar(
+                    pigeon: pigeon,
+                    size: 190,
+                    accessoryIcon: _equippedAccessory?.icon,
+                    companionIcon: _equippedCompanion?.icon,
+                    accessoryId: _equippedAccessory?.id,
+                    companionId: _equippedCompanion?.id,
+                  ),
+                ),
                 const SizedBox(height: 18),
                 Text(
                   pigeon.name,
@@ -449,12 +891,71 @@ class PigeonDetailScreen extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
+                _DetailCard(
+                  child: Column(
+                    children: [
+                      Text(
+                        isFrench
+                            ? 'Conditions de rencontre'
+                            : 'Meeting conditions',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 10),
+                      _DiscoveryConditions(
+                        pigeon: pigeon,
+                        isFrench: isFrench,
+                        revealedCount: 4,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 _FriendshipMilestonesCard(
                   pigeon: pigeon,
                   collectionController: controller,
                   gameController: gameController,
                   isFrench: isFrench,
                   onProgressChanged: onProgressChanged,
+                ),
+                const SizedBox(height: 12),
+                _KeepsakeCard(
+                  pigeon: pigeon,
+                  controller: controller,
+                  isFrench: isFrench,
+                ),
+                const SizedBox(height: 12),
+                _DetailCard(
+                  child: Column(
+                    children: [
+                      Text(
+                        isFrench ? 'Personnalité' : 'Personality',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        pigeon.personality.temperament(isFrench),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '« ${pigeon.personality.catchphrase(isFrench)} »',
+                        key: const ValueKey('pigeon-catchphrase'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.selected,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Chip(
+                        avatar: const Icon(Icons.favorite_outline, size: 17),
+                        label: Text(
+                          '${isFrench ? 'Activité préférée' : 'Favourite activity'} : '
+                          '${activityController.favoriteActivityFor(pigeon.id).label(isFrench)}',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _DetailCard(
@@ -495,6 +996,7 @@ class PigeonDetailScreen extends StatelessWidget {
                   pigeon: pigeon,
                   collectionController: controller,
                   activityController: activityController,
+                  gameController: gameController,
                   isFrench: isFrench,
                   onActivityChanged: onActivityChanged,
                   dailyChallengeController: dailyChallengeController,
@@ -543,6 +1045,14 @@ class PigeonDetailScreen extends StatelessWidget {
 
   Food get _favoriteFood => foodById(pigeon.foodIds.firstOrNull) ?? foods.first;
 
+  PigeonKeepsake? get _equippedAccessory => pigeonKeepsakes
+      .where((item) => item.id == controller.equippedAccessoryId(pigeon.id))
+      .firstOrNull;
+
+  PigeonKeepsake? get _equippedCompanion => pigeonKeepsakes
+      .where((item) => item.id == controller.equippedCompanionId(pigeon.id))
+      .firstOrNull;
+
   int get _favoriteFoodCost => (_favoriteFood.price ~/ 4).clamp(25, 250);
 
   Future<void> _giveFood(
@@ -566,6 +1076,95 @@ class PigeonDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _KeepsakeCard extends StatelessWidget {
+  const _KeepsakeCard({
+    required this.pigeon,
+    required this.controller,
+    required this.isFrench,
+  });
+
+  final Pigeon pigeon;
+  final PigeonCollectionController controller;
+  final bool isFrench;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = controller.progressFor(pigeon.id);
+    final keepsake = keepsakeForPigeon(pigeon.id);
+    final owned = controller.ownsKeepsake(keepsake.id);
+    final equipped =
+        controller.equippedAccessoryId(pigeon.id) == keepsake.id ||
+        controller.equippedCompanionId(pigeon.id) == keepsake.id;
+    return _DetailCard(
+      child: Column(
+        children: [
+          Text(
+            isFrench ? 'Objet personnel' : 'Personal keepsake',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Icon(
+            progress.isMaxFriendship
+                ? (owned ? keepsake.icon : Icons.help_outline)
+                : Icons.lock_outline,
+            size: 38,
+            color: owned ? AppColors.selected : const Color(0xFF948C7C),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            !progress.isMaxFriendship
+                ? (isFrench
+                      ? 'Disponible au niveau d’amitié 10'
+                      : 'Available at friendship level 10')
+                : owned
+                ? keepsake.name(isFrench)
+                : (isFrench ? 'Objet encore inconnu' : 'Unknown keepsake'),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            progress.isMaxFriendship
+                ? (isFrench
+                      ? 'Peut être rapporté après une visite · chance de base ${_chanceLabel(pigeon)}'
+                      : 'May be brought back after a visit · base chance ${_chanceLabel(pigeon)}')
+                : (isFrench
+                      ? 'Deviens son meilleur ami pour commencer la recherche.'
+                      : 'Become best friends to begin the search.'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (owned && keepsake.kind != KeepsakeKind.souvenir) ...[
+            const SizedBox(height: 9),
+            FilledButton.icon(
+              key: ValueKey('equip-keepsake-${keepsake.id}'),
+              onPressed: () => controller.toggleKeepsake(keepsake),
+              icon: Icon(equipped ? Icons.check : Icons.checkroom),
+              label: Text(
+                equipped
+                    ? (isFrench ? 'Équipé' : 'Equipped')
+                    : (isFrench ? 'Équiper' : 'Equip'),
+              ),
+            ),
+          ] else if (owned) ...[
+            const SizedBox(height: 7),
+            Text(
+              isFrench ? 'Souvenir collectionné ✓' : 'Keepsake collected ✓',
+              style: const TextStyle(color: Color(0xFF4F9D58)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _chanceLabel(Pigeon pigeon) {
+    final percent = keepsakeBaseChance(pigeon) * 100;
+    return percent >= 1
+        ? '${percent.toStringAsFixed(0)} %'
+        : '${percent.toStringAsFixed(percent == 0.1 ? 1 : 2)} %';
   }
 }
 
@@ -731,6 +1330,7 @@ class _FriendshipActivityCard extends StatefulWidget {
     required this.pigeon,
     required this.collectionController,
     required this.activityController,
+    required this.gameController,
     required this.isFrench,
     required this.onActivityChanged,
     required this.dailyChallengeController,
@@ -740,6 +1340,7 @@ class _FriendshipActivityCard extends StatefulWidget {
   final Pigeon pigeon;
   final PigeonCollectionController collectionController;
   final FriendshipActivityController activityController;
+  final GameController gameController;
   final bool isFrench;
   final Future<void> Function() onActivityChanged;
   final DailyChallengeController dailyChallengeController;
@@ -886,15 +1487,32 @@ class _FriendshipActivityCardState extends State<_FriendshipActivityCard> {
       widget.collectionController,
     );
     if (points != null) {
+      final duplicateFeathers =
+          widget.activityController.lastKeepsakeDrop?.featherReward ?? 0;
+      if (duplicateFeathers > 0) {
+        await widget.gameController.addReward(
+          crumbs: 0,
+          feathers: duplicateFeathers,
+        );
+      }
       await widget.dailyChallengeController.recordFriendshipInteraction();
       await widget.onProgressChanged();
     }
     if (points != null) await widget.onActivityChanged();
     if (points == null || !mounted) return;
+    final drop = widget.activityController.lastKeepsakeDrop;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          widget.isFrench
+          drop != null
+              ? (drop.isDuplicate
+                    ? (widget.isFrench
+                          ? '${drop.keepsake.name(true)} était déjà dans ta collection · +${drop.featherReward} plumes'
+                          : '${drop.keepsake.name(false)} was already collected · +${drop.featherReward} feathers')
+                    : (widget.isFrench
+                          ? '${widget.pigeon.name} a rapporté ${drop.keepsake.name(true)} ! « ${drop.keepsake.discoveryLine(true)} »'
+                          : '${widget.pigeon.name} brought back ${drop.keepsake.name(false)}! “${drop.keepsake.discoveryLine(false)}”'))
+              : widget.isFrench
               ? (wasFavorite
                     ? '${widget.pigeon.name} a adoré ! +$points points d’amitié'
                     : '${widget.pigeon.name} a apprécié ! +$points points d’amitié')

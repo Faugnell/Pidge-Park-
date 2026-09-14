@@ -69,6 +69,7 @@ class FriendshipActivityController extends ChangeNotifier {
   FriendshipActivity? activeActivity;
   DateTime? completesAt;
   String? startedDay;
+  KeepsakeDrop? lastKeepsakeDrop;
 
   bool get hasActiveActivity =>
       activePigeonId != null && activeActivity != null && completesAt != null;
@@ -105,8 +106,9 @@ class FriendshipActivityController extends ChangeNotifier {
 
   FriendshipActivity favoriteActivityFor(String pigeonId) {
     final pigeon = pigeons.firstWhere((item) => item.id == pigeonId);
-    return FriendshipActivity.values[(pigeon.number - 1) %
-        FriendshipActivity.values.length];
+    return FriendshipActivity.values.firstWhere(
+      (activity) => activity.name == pigeon.personality.favoriteActivity,
+    );
   }
 
   int completedInteractionsFor(String pigeonId) =>
@@ -117,6 +119,7 @@ class FriendshipActivityController extends ChangeNotifier {
 
   Future<bool> start(String pigeonId, FriendshipActivity activity) async {
     if (hasActiveActivity || !canInteractWith(pigeonId)) return false;
+    lastKeepsakeDrop = null;
     activePigeonId = pigeonId;
     activeActivity = activity;
     startedDay = cycle.keyFor(_now());
@@ -135,6 +138,7 @@ class FriendshipActivityController extends ChangeNotifier {
     final points =
         activity.points + (isFavoriteActivity(pigeonId, activity) ? 2 : 0);
     await collection.addFriendshipPoints(pigeonId, points);
+    lastKeepsakeDrop = await collection.tryFindKeepsake(pigeonId);
     final interactionDay = startedDay ?? cycle.keyFor(_now());
     _lastInteractionDays[pigeonId] = interactionDay;
     final completionCount = completedInteractionsFor(pigeonId) + 1;

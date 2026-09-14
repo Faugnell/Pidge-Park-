@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -13,12 +14,16 @@ class EncounterResult {
     required this.pigeon,
     required this.isNew,
     required this.reward,
+    required this.featherReward,
+    this.keepsakeDrop,
     this.unlockedTreasure,
   });
 
   final Pigeon pigeon;
   final bool isNew;
   final int reward;
+  final int featherReward;
+  final KeepsakeDrop? keepsakeDrop;
   final PigeonTreasure? unlockedTreasure;
 }
 
@@ -28,6 +33,8 @@ class FlockEncounterResult {
   final List<EncounterResult> encounters;
   int get totalReward =>
       encounters.fold(0, (total, item) => total + item.reward);
+  int get totalFeatherReward =>
+      encounters.fold(0, (total, item) => total + item.featherReward);
 }
 
 class GameController extends ChangeNotifier {
@@ -48,6 +55,7 @@ class GameController extends ChangeNotifier {
   static const _feathersKey = 'game.feathers';
   static const _foodKey = 'game.active_food';
   static const _arrivalKey = 'game.arrival_at';
+  static const _pendingVisitorsKey = 'game.pending_visitors';
 
   final SharedPreferencesAsync? _preferences;
   final DateTime Function() _now;
@@ -58,6 +66,7 @@ class GameController extends ChangeNotifier {
   int feathers = 35;
   String? activeFoodId;
   DateTime? arrivalAt;
+  List<String> pendingVisitorIds = [];
 
   Food? get activeFood => foodById(activeFoodId);
   bool get hasActiveFood => activeFood != null && arrivalAt != null;
@@ -76,10 +85,13 @@ class GameController extends ChangeNotifier {
     activeFoodId = await preferences.getString(_foodKey);
     final arrival = await preferences.getString(_arrivalKey);
     arrivalAt = arrival == null ? null : DateTime.tryParse(arrival);
+    pendingVisitorIds =
+        await preferences.getStringList(_pendingVisitorsKey) ?? const [];
 
     if (activeFood == null) {
       activeFoodId = null;
       arrivalAt = null;
+      pendingVisitorIds = [];
     }
     notifyListeners();
   }
@@ -120,6 +132,7 @@ class GameController extends ChangeNotifier {
 
     crumbs -= food.price;
     activeFoodId = food.id;
+    pendingVisitorIds = [];
     final duration = useFastTimers ? food.debugDuration : food.duration;
     arrivalAt = _now().add(duration);
     notifyListeners();
@@ -127,10 +140,20 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
-  List<Pigeon> selectAmbientPigeons(PigeonCollectionController collection) {
-    final discovered = pigeons
+  List<Pigeon> selectAmbientPigeons(
+    PigeonCollectionController collection, {
+    PigeonWeather weather = PigeonWeather.any,
+  }) {
+    var discovered = pigeons
         .where((pigeon) => collection.progressFor(pigeon.id).discovered)
         .toList();
+    final weatherCompatible = discovered
+        .where(
+          (pigeon) =>
+              pigeon.weather == PigeonWeather.any || pigeon.weather == weather,
+        )
+        .toList();
+    if (weatherCompatible.isNotEmpty) discovered = weatherCompatible;
     if (discovered.isEmpty) {
       return [pigeons.first, pigeons.first, pigeons.first];
     }
@@ -146,9 +169,18 @@ class GameController extends ChangeNotifier {
   List<Pigeon> selectFoodVisitors(
     PigeonCollectionController collection, {
     Set<String> decorationIds = const {},
+    PigeonWeather weather = PigeonWeather.any,
   }) {
     final food = activeFood;
     if (food == null || !visitorReady) return const [];
+    final savedVisitors = pendingVisitorIds
+        .map((id) => pigeons.where((item) => item.id == id).firstOrNull)
+        .whereType<Pigeon>()
+        .toList();
+    if (savedVisitors.isNotEmpty &&
+        savedVisitors.length == pendingVisitorIds.length) {
+      return savedVisitors;
+    }
     final count = _visitorCount(food);
     final available = [
       ...pigeons.where((pigeon) => !{17, 19, 20}.contains(pigeon.number)),
@@ -163,7 +195,7 @@ class GameController extends ChangeNotifier {
           .where(
             (pigeon) =>
                 !collection.progressFor(pigeon.id).discovered &&
-                _matchesCurrentConditions(pigeon, food, decorationIds),
+                _matchesCurrentConditions(pigeon, food, decorationIds, weather),
           )
           .toList();
       final seekKnown = _random.nextDouble() < 0.8;
@@ -172,8 +204,12 @@ class GameController extends ChangeNotifier {
       if (pool.isEmpty) {
         pool = available
             .where(
-              (pigeon) =>
-                  _matchesCurrentConditions(pigeon, food, decorationIds),
+              (pigeon) => _matchesCurrentConditions(
+                pigeon,
+                food,
+                decorationIds,
+                weather,
+              ),
             )
             .toList();
       }
@@ -193,10 +229,17 @@ class GameController extends ChangeNotifier {
               .progressFor(candidate.id)
               .friendshipPoints;
           final conditionBonus =
-              _matchesCurrentConditions(candidate, food, decorationIds) ? 4 : 1;
+              _matchesCurrentConditions(candidate, food, decorationIds, weather)
+              ? 4
+              : 1;
           return (1 + friendshipPoints) * conditionBonus;
         }
-        if (_matchesCurrentConditions(candidate, food, decorationIds)) {
+        if (_matchesCurrentConditions(
+          candidate,
+          food,
+          decorationIds,
+          weather,
+        )) {
           return 12 + _conditionScore(candidate) * 3;
         }
         if (food.visitorIds.contains(candidate.id)) return 6;
@@ -205,7 +248,14 @@ class GameController extends ChangeNotifier {
       selected.add(pigeon);
       available.remove(pigeon);
     }
-    return selected;
+    pendingVisitorIds = selected.map((pigeon) => pigeon.id).toList();
+    unawaited(_save());
+    return List.unmodifiable(selected);
+  }
+
+  @visibleForTesting
+  void clearPendingVisitorSelection() {
+    pendingVisitorIds = [];
   }
 
   int _visitorCount(Food food) {
@@ -214,10 +264,18 @@ class GameController extends ChangeNotifier {
     return _random.nextDouble() < fourVisitorChance ? 4 : 3;
   }
 
+  bool matchesCurrentConditions(
+    Pigeon pigeon, {
+    required Food food,
+    Set<String> decorationIds = const {},
+    PigeonWeather weather = PigeonWeather.any,
+  }) => _matchesCurrentConditions(pigeon, food, decorationIds, weather);
+
   bool _matchesCurrentConditions(
     Pigeon pigeon,
     Food food,
     Set<String> decorationIds,
+    PigeonWeather weather,
   ) {
     final foodMatches =
         pigeon.foodIds.isEmpty || pigeon.foodIds.contains(food.id);
@@ -230,7 +288,11 @@ class GameController extends ChangeNotifier {
         : VisitPeriod.any;
     final periodMatches =
         pigeon.period == VisitPeriod.any || pigeon.period == currentPeriod;
-    return foodMatches && decorationsMatch && periodMatches;
+    final weatherMatches =
+        weather == PigeonWeather.any ||
+        pigeon.weather == PigeonWeather.any ||
+        pigeon.weather == weather;
+    return foodMatches && decorationsMatch && periodMatches && weatherMatches;
   }
 
   List<Pigeon> _weightedSelection(
@@ -283,18 +345,28 @@ class GameController extends ChangeNotifier {
           ? possibleTreasure
           : null;
       final reward = _rewardFor(pigeon);
+      final keepsakeDrop = await collection.tryFindKeepsake(pigeon.id);
       encounters.add(
         EncounterResult(
           pigeon: pigeon,
           isNew: isNew,
           reward: reward,
+          featherReward:
+              (isNew ? _firstDiscoveryFeathers(pigeon) : 0) +
+              (keepsakeDrop?.featherReward ?? 0),
+          keepsakeDrop: keepsakeDrop,
           unlockedTreasure: unlockedTreasure,
         ),
       );
     }
     crumbs += encounters.fold<int>(0, (total, item) => total + item.reward);
+    feathers += encounters.fold<int>(
+      0,
+      (total, item) => total + item.featherReward,
+    );
     activeFoodId = null;
     arrivalAt = null;
+    pendingVisitorIds = [];
     notifyListeners();
     await _save();
     return FlockEncounterResult(encounters);
@@ -305,6 +377,13 @@ class GameController extends ChangeNotifier {
     PigeonRarity.rare => 50 + _random.nextInt(51),
     PigeonRarity.epic => 100 + _random.nextInt(151),
     PigeonRarity.legendary => 500,
+  };
+
+  int _firstDiscoveryFeathers(Pigeon pigeon) => switch (pigeon.rarity) {
+    PigeonRarity.common => 1,
+    PigeonRarity.rare => 2,
+    PigeonRarity.epic => 4,
+    PigeonRarity.legendary => 10,
   };
 
   Future<EncounterResult?> meetVisitor(
@@ -336,11 +415,15 @@ class GameController extends ChangeNotifier {
               .where((pigeon) => food.visitorIds.contains(pigeon.id))
               .toList()
         : eligible;
+    int visitScore(Pigeon pigeon) =>
+        pigeon.foodIds.where((id) => id == food.id).length +
+        pigeon.decorationIds.where(decorationIds.contains).length +
+        (pigeon.period == VisitPeriod.any ? 0 : 1);
     final bestScore = candidates
-        .map(_conditionScore)
+        .map(visitScore)
         .reduce((first, second) => first > second ? first : second);
     final bestCandidates = candidates
-        .where((pigeon) => _conditionScore(pigeon) == bestScore)
+        .where((pigeon) => visitScore(pigeon) == bestScore)
         .toList();
     final pigeon = bestCandidates[_random.nextInt(bestCandidates.length)];
     final affectionBefore = collection.progressFor(pigeon.id).affection;
@@ -354,16 +437,24 @@ class GameController extends ChangeNotifier {
         ? possibleTreasure
         : null;
     final reward = _rewardFor(pigeon);
+    final keepsakeDrop = await collection.tryFindKeepsake(pigeon.id);
+    final featherReward =
+        (isNew ? _firstDiscoveryFeathers(pigeon) : 0) +
+        (keepsakeDrop?.featherReward ?? 0);
 
     crumbs += reward;
+    feathers += featherReward;
     activeFoodId = null;
     arrivalAt = null;
+    pendingVisitorIds = [];
     notifyListeners();
     await _save();
     return EncounterResult(
       pigeon: pigeon,
       isNew: isNew,
       reward: reward,
+      featherReward: featherReward,
+      keepsakeDrop: keepsakeDrop,
       unlockedTreasure: unlockedTreasure,
     );
   }
@@ -371,7 +462,8 @@ class GameController extends ChangeNotifier {
   int _conditionScore(Pigeon pigeon) {
     return pigeon.foodIds.length +
         pigeon.decorationIds.length +
-        (pigeon.period == VisitPeriod.any ? 0 : 1);
+        (pigeon.period == VisitPeriod.any ? 0 : 1) +
+        (pigeon.weather == PigeonWeather.any ? 0 : 1);
   }
 
   Future<void> resetAllData() async {
@@ -381,11 +473,13 @@ class GameController extends ChangeNotifier {
       await preferences.remove(_feathersKey);
       await preferences.remove(_foodKey);
       await preferences.remove(_arrivalKey);
+      await preferences.remove(_pendingVisitorsKey);
     }
     crumbs = 1240;
     feathers = 35;
     activeFoodId = null;
     arrivalAt = null;
+    pendingVisitorIds = [];
     notifyListeners();
   }
 
@@ -403,6 +497,7 @@ class GameController extends ChangeNotifier {
         preferences.setString(_arrivalKey, arrivalAt!.toIso8601String())
       else
         preferences.remove(_arrivalKey),
+      preferences.setStringList(_pendingVisitorsKey, pendingVisitorIds),
     ]);
   }
 }

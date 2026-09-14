@@ -43,12 +43,26 @@ class DecorationController extends ChangeNotifier {
   }
 
   Future<bool> buy(ParkDecoration decoration, GameController game) async {
-    if (isOwned(decoration) || game.crumbs < decoration.price) return false;
+    if (isOwned(decoration) ||
+        decoration.collectionRequirement != null ||
+        game.crumbs < decoration.price) {
+      return false;
+    }
     await game.spendCrumbs(decoration.price);
     ownedIds = {...ownedIds, decoration.id};
     notifyListeners();
     await _save();
     return true;
+  }
+
+  Future<void> grant(String decorationId) async {
+    if (ownedIds.contains(decorationId) ||
+        !decorations.any((item) => item.id == decorationId)) {
+      return;
+    }
+    ownedIds = {...ownedIds, decorationId};
+    notifyListeners();
+    await _save();
   }
 
   Future<void> toggleEquipped(ParkDecoration decoration) async {
